@@ -17,12 +17,56 @@ def walk_expr(r, tree):
         r.append(('v', tree.attr))
     return
 
-def walk_stmt(r, tree):
+def walk_stmt2(r, tree):
     assert isinstance(tree, ast.stmt), ast
     if isinstance(tree, ast.ClassDef):
         r.append(('t', tree.name))
         for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.FunctionDef):
+        r.append(('f', tree.name))
+        for a in tree.args.args:
+            walk_expr(r, a)
+        if tree.args.vararg is not None:
+            r.append(('v', tree.args.vararg))
+        if tree.args.kwarg is not None:
+            r.append(('v', tree.args.kwarg))
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.ExceptHandler):
+        walk_expr(r, tree.name)
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.For):
+        walk_expr(r, tree.target)
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.If):
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.While):
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.With):
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.Assign):
+        for t in tree.targets:
+            walk_expr(r, t)
+    elif isinstance(tree, ast.TryExcept):
+        for t in tree.body:
+            walk_stmt2(r, t)
+    elif isinstance(tree, ast.TryFinally):
+        for t in tree.body:
+            walk_stmt2(r, t)
+    return
+
+def walk_stmt3(r, tree):
+    assert isinstance(tree, ast.stmt), ast
+    if isinstance(tree, ast.ClassDef):
+        r.append(('t', tree.name))
+        for t in tree.body:
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.FunctionDef):
         r.append(('f', tree.name))
         for a in tree.args.posonlyargs:
@@ -36,38 +80,44 @@ def walk_stmt(r, tree):
         if tree.args.kwarg is not None:
             r.append(('v', tree.args.kwarg))
         for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.ExceptHandler):
         r.append(('v', tree.name))
         for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.For):
         walk_expr(r, tree.target)
         for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.If):
         for t in tree.body:
-            walk_stmt(r, t)
-    elif isinstance(tree, ast.Try):
-        for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.While):
         for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.With):
         for t in tree.body:
-            walk_stmt(r, t)
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.Assign):
         for t in tree.targets:
             walk_expr(r, t)
+    elif isinstance(tree, ast.Try):
+        for t in tree.body:
+            walk_stmt3(r, t)
     elif isinstance(tree, ast.AnnAssign):
         walk_expr(r, tree.target)
     return
 
+# check: 2 or 3
+if sys.version_info[0] == 2:
+    walk_stmt = walk_stmt2
+else:
+    walk_stmt = walk_stmt3
+
 def main(argv):
     import getopt
     def usage():
-        print(f'usage: {argv[0]} [-d] [-o output] [file ...]')
+        print('usage: %s [-d] [-o output] [file ...]' % argv[0])
         return 100
     try:
         (opts, args) = getopt.getopt(argv[1:], 'do:')
@@ -79,9 +129,9 @@ def main(argv):
         if k == '-d': level = logging.DEBUG
         elif k == '-o': output = v
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=level)
-    
+
     for path in args:
-        print(f'+ {path}')
+        print('+ '+path)
         with open(path, 'rb') as fp:
             text = fp.read()
         tree = ast.parse(text, path)
@@ -90,8 +140,8 @@ def main(argv):
         for t in tree.body:
             walk_stmt(r, t)
         for (t,name) in r:
-            print(f'{t} {name}')
-        print()
+            print(t+' '+name)
+        print('')
     return
 
 if __name__ == '__main__': sys.exit(main(sys.argv))
