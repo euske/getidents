@@ -131,14 +131,19 @@ def main(argv):
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=level)
 
     for path in args:
-        print('+ '+path)
         with open(path, 'rb') as fp:
             text = fp.read()
-        tree = ast.parse(text, path)
+        try:
+            tree = ast.parse(text, path)
+        except SyntaxError:
+            print('! '+path)
+            print('')
+            continue
         assert isinstance(tree, ast.Module)
         r = []
         for t in tree.body:
             walk_stmt(r, t)
+        print('+ '+path)
         for (t,name) in r:
             print(t+' '+name)
         print('')

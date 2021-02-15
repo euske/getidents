@@ -1,6 +1,6 @@
 #!/bin/sh
 # usage:
-#   ./extractIdents.sh [opts] *.java
+#   ./getIdents.sh [opts] *.java
 BASEDIR="${0%/*}/.."
 LIBDIR="${BASEDIR}/lib"
 CLASSPATH="${BASEDIR}/target"

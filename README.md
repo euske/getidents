@@ -59,7 +59,10 @@ Extracts identifiers from Java/Python source code.
 
     $ ./java/extractIdent.sh tests/Hello.java
 
-### Python
+### Python2
 
-    $ python ./python/getidents.py tests/hello.py
-    
+    $ python2 ./python/getidents.py tests/hello2.py
+
+### Python3
+
+    $ python3 ./python/getidents.py tests/hello3.py
