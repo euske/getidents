@@ -74,11 +74,11 @@ def walk_stmt3(r, tree):
         for a in tree.args.args:
             r.append(('v', a.arg))
         if tree.args.vararg is not None:
-            r.append(('v', tree.args.vararg))
+            r.append(('v', tree.args.vararg.arg))
         for a in tree.args.kwonlyargs:
             r.append(('v', a.arg))
         if tree.args.kwarg is not None:
-            r.append(('v', tree.args.kwarg))
+            r.append(('v', tree.args.kwarg.arg))
         for t in tree.body:
             walk_stmt3(r, t)
     elif isinstance(tree, ast.ExceptHandler):
