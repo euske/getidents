@@ -66,3 +66,8 @@ Extracts identifiers from Java/Python source code.
 ### Python3
 
     $ python3 ./python/getidents.py tests/hello3.py
+
+### Try Python3 and then fallback to Python2 (ugh.)
+
+    python3 ./python/getidents.py tests/*.py > idents3.txt
+    grep '^!' idents3.txt | cut -c3- | xargs -d '\n' python2 ./python/getidents.py > idents2.txt
