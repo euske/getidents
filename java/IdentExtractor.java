@@ -129,11 +129,11 @@ public class IdentExtractor extends ASTVisitor {
             parser.setCompilerOptions(options);
             CompilationUnit cu = (CompilationUnit)parser.createAST(null);
 
-            IdentExtractor visitor = new IdentExtractor();
-            cu.accept(visitor);
+            IdentExtractor extractor = new IdentExtractor();
+            cu.accept(extractor);
 
             out.println("+ "+path);
-            for (Ident ident : visitor.getIdents()) {
+            for (Ident ident : extractor.getIdents()) {
                 String t;
                 switch (ident.type) {
                 case TYPE:
