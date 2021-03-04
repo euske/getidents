@@ -164,6 +164,7 @@ class ContextExtractor extends ASTVisitor {
         Type type = node.getType();
         if (type instanceof SimpleType) {
             String name = node.getName().getIdentifier();
+            put(_current+"."+name, "v"+name);
             put(_current+"."+name,
                 "t"+((SimpleType)type).getName().getFullyQualifiedName());
             _current.addFeat(name);
@@ -179,6 +180,7 @@ class ContextExtractor extends ASTVisitor {
             for (VariableDeclarationFragment frag :
                      (List<VariableDeclarationFragment>)node.fragments()) {
                 String name = frag.getName().getIdentifier();;
+                put(_current+"."+name, "v"+name);
                 put(_current+"."+name,
                     "t"+((SimpleType)type).getName().getFullyQualifiedName());
                 _current.addFeat(name);
@@ -195,6 +197,7 @@ class ContextExtractor extends ASTVisitor {
             for (VariableDeclarationFragment frag :
                      (List<VariableDeclarationFragment>)node.fragments()) {
                 String name = frag.getName().getIdentifier();;
+                put(_current+"."+name, "v"+name);
                 put(_current+"."+name,
                     "t"+((SimpleType)type).getName().getFullyQualifiedName());
             }
@@ -287,7 +290,7 @@ public class UseExtractor extends ASTVisitor {
 
     @Override
     public boolean visit(DoStatement node) {
-        parseExpr(node.getExpression());
+        handleExpr(node.getExpression());
         return true;
     }
     @Override
@@ -295,46 +298,46 @@ public class UseExtractor extends ASTVisitor {
     public boolean visit(ForStatement node) {
         Expression expr1 = node.getExpression();
         if (expr1 != null) {
-            parseExpr(expr1);
+            handleExpr(expr1);
         }
         for (Expression expr : (List<Expression>)node.initializers()) {
-            parseExpr(expr);
+            handleExpr(expr);
         }
         for (Expression expr : (List<Expression>)node.updaters()) {
-            parseExpr(expr);
+            handleExpr(expr);
         }
         return true;
     }
     @Override
     public boolean visit(EnhancedForStatement node) {
-        parseExpr(node.getExpression());
+        handleExpr(node.getExpression());
         return true;
     }
     @Override
     public boolean visit(IfStatement node) {
-        parseExpr(node.getExpression());
+        handleExpr(node.getExpression());
         return true;
     }
     @Override
     public boolean visit(ExpressionStatement node) {
-        parseExpr(node.getExpression());
+        handleExpr(node.getExpression());
         return true;
     }
     @Override
     public boolean visit(SwitchStatement node) {
-        parseExpr(node.getExpression());
+        handleExpr(node.getExpression());
         return true;
     }
     @Override
     public boolean visit(WhileStatement node) {
-        parseExpr(node.getExpression());
+        handleExpr(node.getExpression());
         return true;
     }
     @Override
     public boolean visit(ReturnStatement node) {
         Expression expr = node.getExpression();
         if (expr != null) {
-            parseExpr(expr);
+            handleExpr(expr);
         }
         return true;
     }
@@ -342,16 +345,158 @@ public class UseExtractor extends ASTVisitor {
     public boolean visit(VariableDeclarationFragment node) {
         Expression expr = node.getInitializer();
         if (expr != null) {
-            parseExpr(expr);
+            handleExpr(expr);
         }
         return true;
     }
 
-    private void parseExpr(Expression expr) {
-        while (expr instanceof Assignment) {
-            expr = ((Assignment)expr).getRightHandSide();
+    private void handleExpr(Expression expr) {
+        //System.out.println(expr.getClass().getName()+" "+expr);
+        parseExpr(expr);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String parseExpr(Expression expr) {
+        if (expr instanceof Annotation) {
+            // "@Annotation"
+        } else if (expr instanceof Name) {
+            // "a.b"
+            Name name = (Name)expr;
+            if (name.isSimpleName()) {
+                SimpleName sname = (SimpleName)name;
+                resolve(sname.getIdentifier());
+            } else {
+                QualifiedName qname = (QualifiedName)name;
+                parseExpr(qname.getQualifier());
+            }
+        } else if (expr instanceof ThisExpression) {
+            // "this"
+        } else if (expr instanceof BooleanLiteral) {
+            // "true", "false"
+        } else if (expr instanceof CharacterLiteral) {
+            // "'c'"
+        } else if (expr instanceof NullLiteral) {
+            // "null"
+        } else if (expr instanceof NumberLiteral) {
+            // "42"
+        } else if (expr instanceof StringLiteral) {
+            // ""abc""
+        } else if (expr instanceof TypeLiteral) {
+            // "A.class"
+            Type value = ((TypeLiteral)expr).getType();
+
+        } else if (expr instanceof PrefixExpression) {
+            // "++x"
+            // "!a", "+a", "-a", "~a"
+            PrefixExpression prefix = (PrefixExpression)expr;
+            parseExpr(prefix.getOperand());
+        } else if (expr instanceof PostfixExpression) {
+            // "y--"
+            PostfixExpression postfix = (PostfixExpression)expr;
+            parseExpr(postfix.getOperand());
+        } else if (expr instanceof InfixExpression) {
+            // "a+b"
+            InfixExpression infix = (InfixExpression)expr;
+            parseExpr(infix.getLeftOperand());
+            parseExpr(infix.getRightOperand());
+        } else if (expr instanceof ParenthesizedExpression) {
+            // "(expr)"
+            ParenthesizedExpression paren = (ParenthesizedExpression)expr;
+            parseExpr(paren.getExpression());
+        } else if (expr instanceof Assignment) {
+            // "p = q"
+            Assignment assn = (Assignment)expr;
+            parseExpr(assn.getLeftHandSide());
+            parseExpr(assn.getRightHandSide());
+        } else if (expr instanceof VariableDeclarationExpression) {
+            // "int a=2"
+            VariableDeclarationExpression decl =
+                (VariableDeclarationExpression)expr;
+            // XXX
+        } else if (expr instanceof MethodInvocation) {
+            MethodInvocation invoke = (MethodInvocation)expr;
+            Expression expr1 = invoke.getExpression();
+            if (expr1 != null) {
+                parseExpr(expr1);
+            }
+            for (Expression arg : (List<Expression>)invoke.arguments()) {
+                parseExpr(arg);
+            }
+        } else if (expr instanceof SuperMethodInvocation) {
+            // "super.method()"
+            SuperMethodInvocation sinvoke = (SuperMethodInvocation)expr;
+            for (Expression arg : (List<Expression>)sinvoke.arguments()) {
+                parseExpr(arg);
+            }
+        } else if (expr instanceof ArrayCreation) {
+            // "new int[10]"
+        } else if (expr instanceof ArrayInitializer) {
+            ArrayInitializer init = (ArrayInitializer)expr;
+            for (Expression expr1 : (List<Expression>)init.expressions()) {
+                parseExpr(expr1);
+            }
+        } else if (expr instanceof ArrayAccess) {
+            // "a[0]"
+            ArrayAccess aa = (ArrayAccess)expr;
+            parseExpr(aa.getArray());
+            parseExpr(aa.getIndex());
+        } else if (expr instanceof FieldAccess) {
+            // "(expr).foo"
+            FieldAccess fa = (FieldAccess)expr;
+            Expression expr1 = fa.getExpression();
+            if (expr1 != null) {
+                parseExpr(expr1);
+            }
+            SimpleName fieldName = fa.getName();
+        } else if (expr instanceof SuperFieldAccess) {
+            // "super.baa"
+            SuperFieldAccess sfa = (SuperFieldAccess)expr;
+            SimpleName fieldName = sfa.getName();
+        } else if (expr instanceof CastExpression) {
+            // "(String)"
+            CastExpression cast = (CastExpression)expr;
+            Type type = cast.getType();
+        } else if (expr instanceof ClassInstanceCreation) {
+            // "new T()"
+            ClassInstanceCreation cstr = (ClassInstanceCreation)expr;
+            Type type = cstr.getType();
+            Expression expr1 = cstr.getExpression();
+            if (expr1 != null) {
+                parseExpr(expr1);
+            }
+            for (Expression arg : (List<Expression>)cstr.arguments()) {
+                parseExpr(arg);
+            }
+        } else if (expr instanceof ConditionalExpression) {
+            // "c? a : b"
+            ConditionalExpression cond = (ConditionalExpression)expr;
+            parseExpr(cond.getExpression());
+            parseExpr(cond.getThenExpression());
+            parseExpr(cond.getElseExpression());
+        } else if (expr instanceof InstanceofExpression) {
+            // "a instanceof A"
+            InstanceofExpression instof = (InstanceofExpression)expr;
+            Type type = instof.getRightOperand();
+            parseExpr(instof.getLeftOperand());
+        } else if (expr instanceof LambdaExpression) {
+            // "x -> { ... }"
+        } else if (expr instanceof ExpressionMethodReference) {
+        } else if (expr instanceof MethodReference) {
+            //  CreationReference
+            //  SuperMethodReference
+            //  TypeMethodReference
         }
-        System.out.println(expr.getClass().getName()+" "+expr);
+        return null;
+    }
+
+    private void resolve(String name) {
+        String k = _current+"."+name;
+        String[] a = _featset.get(k);
+        if (a != null) {
+            for (String v : a) {
+                System.out.println(k+": "+v);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
