@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="IdentExtractor" default="build" basedir=".">
+<project name="UseExtractor" default="build" basedir=".">
 
   <property file="build.properties" />
   <property name="srcDir" location="java" />
   <property name="libDir" location="lib" />
   <property name="buildDir" location="target" />
-  <property name="testsDir" location="tests" />
+  <property name="testDir" location="tests" />
 
-  <property name="input" location="${testsDir}/Hello.java" />
+  <property name="input" location="${testDir}/Hello.java" />
 
   <path id="build.classpath">
     <pathelement location="${libDir}/junit-4.12.jar"/>
@@ -51,7 +51,7 @@
   </target>
 
   <target name="run" depends="build">
-    <java classname="IdentExtractor">
+    <java classname="UseExtractor">
       <arg file="${input}" />
       <classpath location="${buildDir}" />
       <classpath refid="build.classpath"/>
