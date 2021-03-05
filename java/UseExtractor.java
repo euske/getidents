@@ -287,7 +287,7 @@ class ContextExtractor extends Extractor {
     }
 
     private void put(String key, String value) {
-        System.out.println("put: "+key+" "+value);
+        //System.out.println("put: "+key+" "+value);
         _featset.add(key, value);
     }
 }
@@ -570,7 +570,14 @@ public class UseExtractor extends Extractor {
         //System.out.println("resolve: "+key);
         String[] a = _featset.get(key);
         if (a != null) {
-            System.out.println("! "+Utils.join(a));
+            StringBuilder b = new StringBuilder();
+            for (String v : a) {
+                if (1 < b.length()) {
+                    b.append(" ");
+                }
+                b.append(v);
+            }
+            System.out.println(b.toString());
         }
         return a;
     }
@@ -642,7 +649,7 @@ public class UseExtractor extends Extractor {
 
         System.err.println("Pass 1.");
         String[] srcpath = { "." };
-        List<CompilationUnit> cunits = new ArrayList<CompilationUnit>();
+        Map<String, CompilationUnit> cunits = new HashMap<String, CompilationUnit>();
         for (String path : files) {
             String src;
             {
@@ -671,15 +678,17 @@ public class UseExtractor extends Extractor {
                 parser.setCompilerOptions(options);
             }
             CompilationUnit cunit = (CompilationUnit)parser.createAST(null);
-            cunits.add(cunit);
+            cunits.put(path, cunit);
 
             ContextExtractor extractor = new ContextExtractor(featset);
             cunit.accept(extractor);
         }
 
         System.err.println("Pass 2.");
-        for (CompilationUnit cunit : cunits) {
+        for (String path : cunits.keySet()) {
+            CompilationUnit cunit = cunits.get(path);
             UseExtractor extractor = new UseExtractor(featset);
+            System.out.println("+ "+path);
             cunit.accept(extractor);
         }
 
