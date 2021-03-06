@@ -42,9 +42,14 @@ class Utils {
 
     public static String typeName(Type type) {
         if (type instanceof SimpleType) {
-            return ((SimpleType)type).getName().getFullyQualifiedName();
+            Name name = ((SimpleType)type).getName();
+            if (name.isSimpleName()) {
+                return ((SimpleName)name).getIdentifier();
+            } else {
+                return ((QualifiedName)name).getName().getIdentifier();
+            }
         } else if (type instanceof QualifiedType) {
-            return ((QualifiedType)type).getName().getFullyQualifiedName();
+            return ((QualifiedType)type).getName().getIdentifier();
         } else if (type instanceof ParameterizedType) {
             return Utils.typeName(((ParameterizedType)type).getType());
         } else {
@@ -86,6 +91,16 @@ class Context {
     public Context(Context parent, String name) {
         _parent = parent;
         _name = name;
+    }
+
+    public Context(Context parent, Name name) {
+        if (name.isSimpleName()) {
+            _parent = parent;
+            _name = ((SimpleName)name).getIdentifier();
+        } else {
+            _parent = new Context(parent, ((QualifiedName)name).getQualifier());
+            _name = ((QualifiedName)name).getName().getIdentifier();
+        }
     }
 
     @Override
@@ -141,7 +156,7 @@ class Extractor extends ASTVisitor {
 
     @Override
     public boolean visit(PackageDeclaration node) {
-        _current = new Context(null, node.getName().getFullyQualifiedName());
+        _current = new Context(null, node.getName());
         return true;
     }
 
