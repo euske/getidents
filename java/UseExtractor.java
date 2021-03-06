@@ -247,8 +247,10 @@ class ContextExtractor extends Extractor {
 
     @Override
     public void endVisit(MethodDeclaration node) {
+        String name = node.getName().getIdentifier();
         String key = "m"+findParent("M").getKey(2);
         String type = Utils.typeName(node.getReturnType2());
+        put(key, "f"+name);
         if (type != null) {
             put(key, "t"+type);
         }
@@ -703,8 +705,9 @@ public class UseExtractor extends Extractor {
         for (String path : cunits.keySet()) {
             CompilationUnit cunit = cunits.get(path);
             UseExtractor extractor = new UseExtractor(featset);
-            System.out.println("+ "+path);
+            out.println("+ "+path);
             cunit.accept(extractor);
+            out.println();
         }
 
         out.close();
