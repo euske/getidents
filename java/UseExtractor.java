@@ -203,6 +203,28 @@ class Extractor extends ASTVisitor {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public boolean visit(Initializer node) {
+        push("M:static");
+        return true;
+    }
+    @Override
+    public void endVisit(Initializer node) {
+        pop();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean visit(LambdaExpression node) {
+        push("M:lambda"+node.getStartPosition());
+        return true;
+    }
+    @Override
+    public void endVisit(LambdaExpression node) {
+        pop();
+    }
+
+    @Override
     public boolean visit(Block node) {
         push("B"+node.getStartPosition());
         return true;
@@ -249,8 +271,8 @@ class ContextExtractor extends Extractor {
     public void endVisit(MethodDeclaration node) {
         String name = node.getName().getIdentifier();
         String key = "m"+findParent("M").getKey(2);
-        String type = Utils.typeName(node.getReturnType2());
         put(key, "f"+name);
+        String type = Utils.typeName(node.getReturnType2());
         if (type != null) {
             put(key, "t"+type);
         }
@@ -622,6 +644,7 @@ public class UseExtractor extends Extractor {
     public static void main(String[] args)
         throws IOException {
 
+        int loglevel = 0;
         List<String> files = new ArrayList<String>();
         PrintStream out = System.out;
         for (int i = 0; i < args.length; i++) {
@@ -630,6 +653,8 @@ public class UseExtractor extends Extractor {
                 while (i < args.length) {
                     files.add(args[++i]);
                 }
+            } else if (arg.equals("-v")) {
+                loglevel++;
             } else if (arg.equals("-i")) {
                 String path = args[++i];
                 InputStream input = System.in;
@@ -664,10 +689,15 @@ public class UseExtractor extends Extractor {
 
         FeatSet featset = new FeatSet();
 
-        System.err.println("Pass 1.");
+        if (1 <= loglevel) {
+            System.err.println("Pass 1.");
+        }
         String[] srcpath = { "." };
         Map<String, CompilationUnit> cunits = new HashMap<String, CompilationUnit>();
         for (String path : files) {
+            if (1 <= loglevel) {
+                System.err.println("  parsing: "+path);
+            }
             String src;
             {
                 // Read an entire file as a String.
@@ -701,8 +731,13 @@ public class UseExtractor extends Extractor {
             cunit.accept(extractor);
         }
 
-        System.err.println("Pass 2.");
+        if (1 <= loglevel) {
+            System.err.println("Pass 2.");
+        }
         for (String path : cunits.keySet()) {
+            if (1 <= loglevel) {
+                System.err.println("  parsing: "+path);
+            }
             CompilationUnit cunit = cunits.get(path);
             UseExtractor extractor = new UseExtractor(featset);
             out.println("+ "+path);
