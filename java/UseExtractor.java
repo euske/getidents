@@ -448,7 +448,9 @@ public class UseExtractor extends Extractor {
                     while (context != null) {
                         a = resolve("f"+context.getKey(1)+"."+sname.getIdentifier());
                         if (a != null) break;
-                        context = context.getParent().findParent("T");
+                        context = context.getParent();
+                        if (context == null) break;
+                        context = context.findParent("T");
                     }
                 }
             } else {
@@ -479,7 +481,7 @@ public class UseExtractor extends Extractor {
             return null;
         } else if (expr instanceof StringLiteral) {
             // ""abc""
-            return null;
+            return "String";
         } else if (expr instanceof TypeLiteral) {
             // "A.class"
             return null;
