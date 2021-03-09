@@ -145,7 +145,7 @@ def main(argv):
             walk_stmt(r, t)
         print('+ '+path)
         for (t,name) in r:
-            print(t+' '+name)
+            print(t+name)
         print('')
     return
 

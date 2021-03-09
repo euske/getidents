@@ -149,7 +149,7 @@ public class OccurrenceExtractor extends ASTVisitor {
                     t = "?";
                     break;
                 }
-                out.println(t+" "+ident.name);
+                out.println(t+ident.name);
             }
             out.println();
         }
