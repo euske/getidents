@@ -457,6 +457,9 @@ public class UseExtractor extends Extractor {
                 if (type != null) {
                     a = resolve("fT"+type+"."+qname.getName().getIdentifier());
                 }
+                if (a == null) {
+                    System.out.println("v"+qname.getName().getIdentifier());
+                }
             }
             return findType(a);
         } else if (expr instanceof ThisExpression) {
@@ -531,6 +534,9 @@ public class UseExtractor extends Extractor {
                 }
             } else {
                 a = resolve("m"+findParent("T").getKey(1)+".M"+name.getIdentifier());
+            }
+            if (a == null) {
+                System.out.println("f"+name.getIdentifier());
             }
             for (Expression arg : (List<Expression>)invoke.arguments()) {
                 parseExpr(arg);
