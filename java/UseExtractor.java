@@ -171,6 +171,16 @@ class Extractor extends ASTVisitor {
     }
 
     @Override
+    public boolean visit(AnnotationTypeDeclaration node) {
+        push("A"+node.getName().getIdentifier());
+        return true;
+    }
+    @Override
+    public void endVisit(AnnotationTypeDeclaration node) {
+        pop();
+    }
+
+    @Override
     public boolean visit(TypeDeclarationStatement node) {
         push("T"+node.getDeclaration().getName().getIdentifier());
         return true;
@@ -269,8 +279,10 @@ class ContextExtractor extends Extractor {
 
     @Override
     public void endVisit(MethodDeclaration node) {
+        Context parent = findParent("M");
+        if (parent == null) return;
         String name = node.getName().getIdentifier();
-        String key = "m"+findParent("M").getKey(2);
+        String key = "m"+parent.getKey(2);
         put(key, "f"+name);
         String type = Utils.typeName(node.getReturnType2());
         if (type != null) {
@@ -281,6 +293,8 @@ class ContextExtractor extends Extractor {
 
     @Override
     public boolean visit(SingleVariableDeclaration node) {
+        Context parent = findParent("M");
+        if (parent == null) return false;
         String name = node.getName().getIdentifier();
         String key = "v"+getCurrent()+"."+name;
         put(key, "v"+name);
@@ -288,13 +302,15 @@ class ContextExtractor extends Extractor {
         if (type != null) {
             put(key, "t"+type);
         }
-        put("m"+findParent("M").getKey(2), "v"+name);
+        put("m"+parent.getKey(2), "v"+name);
         return true;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public boolean visit(VariableDeclarationStatement node) {
+        Context parent = findParent("M");
+        if (parent == null) return false;
         String type = Utils.typeName(node.getType());
         for (VariableDeclarationFragment frag :
                  (List<VariableDeclarationFragment>)node.fragments()) {
@@ -304,7 +320,7 @@ class ContextExtractor extends Extractor {
             if (type != null) {
                 put(key, "t"+type);
             }
-            put("m"+findParent("M").getKey(2), "v"+name);
+            put("m"+parent.getKey(2), "v"+name);
         }
         return true;
     }
@@ -312,11 +328,13 @@ class ContextExtractor extends Extractor {
     @Override
     @SuppressWarnings("unchecked")
     public boolean visit(FieldDeclaration node) {
+        Context parent = findParent("T");
+        if (parent == null) return false;
         String type = Utils.typeName(node.getType());
         for (VariableDeclarationFragment frag :
                  (List<VariableDeclarationFragment>)node.fragments()) {
             String name = frag.getName().getIdentifier();
-            String key = "f"+findParent("T").getKey(1)+"."+name;
+            String key = "f"+parent.getKey(1)+"."+name;
             put(key, "v"+name);
             if (type != null) {
                 put(key, "t"+type);
