@@ -1,6 +1,6 @@
 #!/bin/sh
 # usage:
-#   ./getIdents.sh [opts] *.java
+#   ./getDefs.sh [opts] *.java
 BASEDIR="${0%/*}/.."
 LIBDIR="${BASEDIR}/lib"
 CLASSPATH="${BASEDIR}/target"
@@ -19,4 +19,4 @@ CLASSPATH="${CLASSPATH}:${LIBDIR}/org.eclipse.equinox.app-1.3.400.jar"
 CLASSPATH="${CLASSPATH}:${LIBDIR}/org.eclipse.core.filesystem-1.6.1.jar"
 CLASSPATH="${CLASSPATH}:${LIBDIR}/org.eclipse.text-3.6.0.jar"
 CLASSPATH="${CLASSPATH}:${LIBDIR}/org.eclipse.core.commands-3.8.1.jar"
-exec java -cp "$CLASSPATH" -ea UseExtractor "$@"
+exec java -cp "$CLASSPATH" -ea DefExtractor "$@"

@@ -1,4 +1,4 @@
-//  OccurrenceExtractor.java
+//  DefExtractor.java
 //
 
 import java.io.*;
@@ -6,7 +6,7 @@ import java.util.*;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
 
-public class OccurrenceExtractor extends ASTVisitor {
+public class DefExtractor extends ASTVisitor {
 
     private enum IdentType {
         TYPE, FUNC, VAR
@@ -25,7 +25,7 @@ public class OccurrenceExtractor extends ASTVisitor {
 
     private List<Ident> idents = new ArrayList<>();
 
-    public OccurrenceExtractor() {
+    public DefExtractor() {
     }
 
     @Override
@@ -129,7 +129,7 @@ public class OccurrenceExtractor extends ASTVisitor {
             parser.setCompilerOptions(options);
             CompilationUnit cu = (CompilationUnit)parser.createAST(null);
 
-            OccurrenceExtractor extractor = new OccurrenceExtractor();
+            DefExtractor extractor = new DefExtractor();
             cu.accept(extractor);
 
             out.println("+ "+path);
