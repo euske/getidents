@@ -6,6 +6,9 @@ import java.util.*;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
 
+
+//  Utils
+//
 class Utils {
 
     public static <T> String join(T[] a) {
@@ -43,13 +46,17 @@ class Utils {
     public static String typeName(Type type) {
         if (type instanceof SimpleType) {
             Name name = ((SimpleType)type).getName();
-            if (name.isSimpleName()) {
+            if (name instanceof SimpleName) {
                 return ((SimpleName)name).getIdentifier();
             } else {
                 return ((QualifiedName)name).getName().getIdentifier();
             }
         } else if (type instanceof QualifiedType) {
             return ((QualifiedType)type).getName().getIdentifier();
+        } else if (type instanceof NameQualifiedType) {
+            return ((NameQualifiedType)type).getName().getIdentifier();
+        } else if (type instanceof ArrayType) {
+            return Utils.typeName(((ArrayType)type).getElementType());
         } else if (type instanceof ParameterizedType) {
             return Utils.typeName(((ParameterizedType)type).getType());
         } else {
@@ -58,8 +65,42 @@ class Utils {
     }
 }
 
-// FeatSet
-class FeatSet {
+
+//  Logger
+//
+class Logger {
+
+    public static PrintStream out = System.err;
+    public static int LogLevel = 0;
+
+    public static void info(Object ... a) {
+        if (1 <= LogLevel) {
+            println(a);
+        }
+    }
+
+    public static void debug(Object ... a) {
+        if (2 <= LogLevel) {
+            println(a);
+        }
+    }
+
+    public static void println(Object[] a) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < a.length; i++) {
+            if (i != 0) {
+                b.append(" ");
+            }
+            b.append(a[i].toString());
+        }
+        out.println(b.toString());
+    }
+}
+
+
+//  FeatureSet
+//
+class FeatureSet {
 
     private Map<String, List<String> > _feats =
         new HashMap<String, List<String> >();
@@ -82,7 +123,9 @@ class FeatSet {
     }
 }
 
-// Context
+
+//  Context
+//
 class Context {
 
     private Context _parent;
@@ -94,7 +137,7 @@ class Context {
     }
 
     public Context(Context parent, Name name) {
-        if (name.isSimpleName()) {
+        if (name instanceof SimpleName) {
             _parent = parent;
             _name = ((SimpleName)name).getIdentifier();
         } else {
@@ -140,7 +183,9 @@ class Context {
     }
 }
 
-// Extractor
+
+//  Extractor
+//
 class Extractor extends ASTVisitor {
 
     private Context _current = new Context(null, "");
@@ -247,21 +292,23 @@ class Extractor extends ASTVisitor {
     private void push(String name) {
         _stack.add(_current);
         _current = new Context(_current, name);
-        //System.out.println("current: "+_current);
+        Logger.debug("current:", _current);
     }
     private void pop() {
         _current = _stack.remove(_stack.size()-1);
     }
 }
 
-// ContextExtractor
-class ContextExtractor extends Extractor {
 
-    private FeatSet _featset;
+//  FeatureExtractor
+//
+class FeatureExtractor extends Extractor {
 
-    public ContextExtractor(FeatSet featset) {
+    private FeatureSet _fset;
+
+    public FeatureExtractor(FeatureSet fset) {
         super();
-        _featset = featset;
+        _fset = fset;
     }
 
     @Override
@@ -278,23 +325,33 @@ class ContextExtractor extends Extractor {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void endVisit(MethodDeclaration node) {
         Context parent = findParent("M");
         if (parent == null) return;
-        String name = node.getName().getIdentifier();
         String key = "m"+parent.getKey(2);
-        put(key, "f"+name);
-        String type = Utils.typeName(node.getReturnType2());
-        if (type != null) {
-            put(key, "t"+type);
+        for (SingleVariableDeclaration decl :
+                 (List<SingleVariableDeclaration>)node.parameters()) {
+            String name = decl.getName().getIdentifier();
+            put(key, "v"+name);
+            String type = Utils.typeName(decl.getType());
+            if (type != null) {
+                put(key, "t"+type);
+            }
+        }
+        {
+            String name = node.getName().getIdentifier();
+            put(key, "f"+name);
+            String type = Utils.typeName(node.getReturnType2());
+            if (type != null) {
+                put(key, "t"+type);
+            }
         }
         super.endVisit(node);
     }
 
     @Override
     public boolean visit(SingleVariableDeclaration node) {
-        Context parent = findParent("M");
-        if (parent == null) return false;
         String name = node.getName().getIdentifier();
         String key = "v"+getCurrent()+"."+name;
         put(key, "v"+name);
@@ -302,15 +359,12 @@ class ContextExtractor extends Extractor {
         if (type != null) {
             put(key, "t"+type);
         }
-        put("m"+parent.getKey(2), "v"+name);
         return true;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public boolean visit(VariableDeclarationStatement node) {
-        Context parent = findParent("M");
-        if (parent == null) return false;
         String type = Utils.typeName(node.getType());
         for (VariableDeclarationFragment frag :
                  (List<VariableDeclarationFragment>)node.fragments()) {
@@ -320,7 +374,6 @@ class ContextExtractor extends Extractor {
             if (type != null) {
                 put(key, "t"+type);
             }
-            put("m"+parent.getKey(2), "v"+name);
         }
         return true;
     }
@@ -344,19 +397,21 @@ class ContextExtractor extends Extractor {
     }
 
     private void put(String key, String value) {
-        //System.out.println("put: "+key+" "+value);
-        _featset.add(key, value);
+        Logger.debug("put:", key, value);
+        _fset.add(key, value);
     }
 }
 
-// UseExtractor
+
+//  UseExtractor
+//
 public class UseExtractor extends Extractor {
 
-    private FeatSet _featset;
+    private FeatureSet _fset;
 
-    public UseExtractor(FeatSet featset) {
+    public UseExtractor(FeatureSet fset) {
         super();
-        _featset = featset;
+        _fset = fset;
     }
 
     @Override
@@ -422,12 +477,13 @@ public class UseExtractor extends Extractor {
     }
 
     private void handleExpr(Expression expr) {
-        //System.out.println("+ "+expr.getClass().getName()+" "+expr);
+        Logger.debug("handleExpr:", expr, "("+expr.getClass().getName()+")");
         parseExpr(expr);
     }
 
     @SuppressWarnings("unchecked")
     private String parseExpr(Expression expr) {
+        Logger.debug("parseExpr:", expr);
         if (expr instanceof Annotation) {
             // "@Annotation"
             return null;
@@ -435,7 +491,7 @@ public class UseExtractor extends Extractor {
             // "a.b"
             Name name = (Name)expr;
             String[] a = null;
-            if (name.isSimpleName()) {
+            if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
                 Context context = getCurrent();
                 while (context != null) {
@@ -460,7 +516,7 @@ public class UseExtractor extends Extractor {
                     a = resolve("fT"+type+"."+qname.getName().getIdentifier());
                 }
                 if (a == null) {
-                    System.out.println("v"+qname.getName().getIdentifier());
+                    output("v"+qname.getName().getIdentifier());
                 }
             }
             return findType(a);
@@ -538,7 +594,7 @@ public class UseExtractor extends Extractor {
                 a = resolve("m"+findParent("T").getKey(1)+".M"+name.getIdentifier());
             }
             if (a == null) {
-                System.out.println("f"+name.getIdentifier());
+                output("f"+name.getIdentifier());
             }
             for (Expression arg : (List<Expression>)invoke.arguments()) {
                 parseExpr(arg);
@@ -632,8 +688,8 @@ public class UseExtractor extends Extractor {
     }
 
     private String[] resolve(String key) {
-        //System.out.println("resolve: "+key);
-        String[] a = _featset.get(key);
+        Logger.debug("resolve:", key);
+        String[] a = _fset.get(key);
         if (a != null) {
             StringBuilder b = new StringBuilder();
             for (String v : a) {
@@ -642,7 +698,7 @@ public class UseExtractor extends Extractor {
                 }
                 b.append(v);
             }
-            System.out.println(b.toString());
+            output(b.toString());
         }
         return a;
     }
@@ -653,7 +709,7 @@ public class UseExtractor extends Extractor {
             for (String v : a) {
                 if (v.startsWith("t")) {
                     type = v.substring(1);
-                    //System.out.println("= "+type);
+                    Logger.debug("return:", type);
                     break;
                 }
             }
@@ -662,15 +718,19 @@ public class UseExtractor extends Extractor {
     }
 
     private String returnType(String type) {
-        //System.out.println("= "+type);
+        Logger.debug("return:", type);
         return type;
     }
 
+    private void output(String feat) {
+        System.out.println(feat);
+    }
+
+    // main
     @SuppressWarnings("unchecked")
     public static void main(String[] args)
         throws IOException {
 
-        int loglevel = 0;
         List<String> files = new ArrayList<String>();
         PrintStream out = System.out;
         for (int i = 0; i < args.length; i++) {
@@ -680,7 +740,7 @@ public class UseExtractor extends Extractor {
                     files.add(args[++i]);
                 }
             } else if (arg.equals("-v")) {
-                loglevel++;
+                Logger.LogLevel++;
             } else if (arg.equals("-i")) {
                 String path = args[++i];
                 InputStream input = System.in;
@@ -713,17 +773,13 @@ public class UseExtractor extends Extractor {
             }
         }
 
-        FeatSet featset = new FeatSet();
+        FeatureSet fset = new FeatureSet();
 
-        if (1 <= loglevel) {
-            System.err.println("Pass 1.");
-        }
+        Logger.info("Pass 1.");
         String[] srcpath = { "." };
         Map<String, CompilationUnit> cunits = new HashMap<String, CompilationUnit>();
         for (String path : files) {
-            if (1 <= loglevel) {
-                System.err.println("  parsing: "+path);
-            }
+            Logger.info("  parsing:", path);
             String src;
             {
                 // Read an entire file as a String.
@@ -753,20 +809,16 @@ public class UseExtractor extends Extractor {
             CompilationUnit cunit = (CompilationUnit)parser.createAST(null);
             cunits.put(path, cunit);
 
-            ContextExtractor extractor = new ContextExtractor(featset);
+            FeatureExtractor extractor = new FeatureExtractor(fset);
             cunit.accept(extractor);
         }
 
-        if (1 <= loglevel) {
-            System.err.println("Pass 2.");
-        }
+        Logger.info("Pass 2.");
         for (String path : cunits.keySet()) {
-            if (1 <= loglevel) {
-                System.err.println("  parsing: "+path);
-            }
-            CompilationUnit cunit = cunits.get(path);
-            UseExtractor extractor = new UseExtractor(featset);
+            Logger.info("  parsing:", path);
             out.println("+ "+path);
+            CompilationUnit cunit = cunits.get(path);
+            UseExtractor extractor = new UseExtractor(fset);
             cunit.accept(extractor);
             out.println();
         }
