@@ -1,6 +1,7 @@
 //  UseExtractor.java
 //
 
+package getIdents;
 import java.io.*;
 import java.util.*;
 import org.eclipse.jdt.core.*;
@@ -102,22 +103,22 @@ class Logger {
 //
 class FeatureSet {
 
-    private Map<String, List<String> > _feats =
-        new HashMap<String, List<String> >();
+    private Map<String, List<Ident> > _feats =
+        new HashMap<String, List<Ident> >();
 
-    public void add(String k, String v) {
-        List<String> a = _feats.get(k);
+    public void add(String k, Ident v) {
+        List<Ident> a = _feats.get(k);
         if (a == null) {
-            a = new ArrayList<String>();
+            a = new ArrayList<Ident>();
             _feats.put(k, a);
         }
         a.add(v);
     }
 
-    public String[] get(String k) {
-        List<String> a = _feats.get(k);
+    public Ident[] get(String k) {
+        List<Ident> a = _feats.get(k);
         if (a == null) return null;
-        String[] r = new String[a.size()];
+        Ident[] r = new Ident[a.size()];
         a.toArray(r);
         return r;
     }
@@ -319,7 +320,7 @@ class FeatureExtractor extends Extractor {
                  (List<EnumConstantDeclaration>)node.enumConstants()) {
             String name = frag.getName().getIdentifier();
             String key = "v"+getCurrent()+"."+name;
-            put(key, "t"+getCurrent().getKey(1));
+            put(key, new Ident(IdentType.TYPE, getCurrent().getKey(1)));
         }
         return true;
     }
@@ -333,18 +334,18 @@ class FeatureExtractor extends Extractor {
         for (SingleVariableDeclaration decl :
                  (List<SingleVariableDeclaration>)node.parameters()) {
             String name = decl.getName().getIdentifier();
-            put(key, "v"+name);
+            put(key, new Ident(IdentType.VAR, name));
             String type = Utils.typeName(decl.getType());
             if (type != null) {
-                put(key, "t"+type);
+                put(key, new Ident(IdentType.TYPE, type));
             }
         }
         {
             String name = node.getName().getIdentifier();
-            put(key, "f"+name);
+            put(key, new Ident(IdentType.FUNC, name));
             String type = Utils.typeName(node.getReturnType2());
             if (type != null) {
-                put(key, "t"+type);
+                put(key, new Ident(IdentType.TYPE, type));
             }
         }
         super.endVisit(node);
@@ -354,10 +355,10 @@ class FeatureExtractor extends Extractor {
     public boolean visit(SingleVariableDeclaration node) {
         String name = node.getName().getIdentifier();
         String key = "v"+getCurrent()+"."+name;
-        put(key, "v"+name);
+        put(key, new Ident(IdentType.VAR, name));
         String type = Utils.typeName(node.getType());
         if (type != null) {
-            put(key, "t"+type);
+            put(key, new Ident(IdentType.TYPE, type));
         }
         return true;
     }
@@ -370,9 +371,9 @@ class FeatureExtractor extends Extractor {
                  (List<VariableDeclarationFragment>)node.fragments()) {
             String name = frag.getName().getIdentifier();
             String key = "v"+getCurrent()+"."+name;
-            put(key, "v"+name);
+            put(key, new Ident(IdentType.VAR, name));
             if (type != null) {
-                put(key, "t"+type);
+                put(key, new Ident(IdentType.TYPE, type));
             }
         }
         return true;
@@ -388,15 +389,15 @@ class FeatureExtractor extends Extractor {
                  (List<VariableDeclarationFragment>)node.fragments()) {
             String name = frag.getName().getIdentifier();
             String key = "f"+parent.getKey(1)+"."+name;
-            put(key, "v"+name);
+            put(key, new Ident(IdentType.VAR, name));
             if (type != null) {
-                put(key, "t"+type);
+                put(key, new Ident(IdentType.TYPE, type));
             }
         }
         return true;
     }
 
-    private void put(String key, String value) {
+    private void put(String key, Ident value) {
         Logger.debug("put:", key, value);
         _fset.add(key, value);
     }
@@ -408,10 +409,15 @@ class FeatureExtractor extends Extractor {
 public class UseExtractor extends Extractor {
 
     private FeatureSet _fset;
+    private List<Ident[]> _idents = new ArrayList<Ident[]>();
 
     public UseExtractor(FeatureSet fset) {
         super();
         _fset = fset;
+    }
+
+    public List<Ident[]> getIdents() {
+        return _idents;
     }
 
     @Override
@@ -490,7 +496,7 @@ public class UseExtractor extends Extractor {
         } else if (expr instanceof Name) {
             // "a.b"
             Name name = (Name)expr;
-            String[] a = null;
+            Ident[] a = null;
             if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
                 Context context = getCurrent();
@@ -516,7 +522,7 @@ public class UseExtractor extends Extractor {
                     a = resolve("fT"+type+"."+qname.getName().getIdentifier());
                 }
                 if (a == null) {
-                    output("v"+qname.getName().getIdentifier());
+                    add1(new Ident(IdentType.VAR, qname.getName().getIdentifier()));
                 }
             }
             return findType(a);
@@ -579,7 +585,7 @@ public class UseExtractor extends Extractor {
             return returnType(type);
         } else if (expr instanceof MethodInvocation) {
             MethodInvocation invoke = (MethodInvocation)expr;
-            String[] a = null;
+            Ident[] a = null;
             SimpleName name = invoke.getName();
             Expression expr1 = invoke.getExpression();
             if (expr1 != null) {
@@ -594,7 +600,7 @@ public class UseExtractor extends Extractor {
                 a = resolve("m"+findParent("T").getKey(1)+".M"+name.getIdentifier());
             }
             if (a == null) {
-                output("f"+name.getIdentifier());
+                add1(new Ident(IdentType.FUNC, name.getIdentifier()));
             }
             for (Expression arg : (List<Expression>)invoke.arguments()) {
                 parseExpr(arg);
@@ -634,12 +640,12 @@ public class UseExtractor extends Extractor {
             FieldAccess fa = (FieldAccess)expr;
             Expression expr1 = fa.getExpression();
             String type1 = parseExpr(expr1);
-            String[] a = resolve("fT"+type1+"."+fa.getName().getIdentifier());
+            Ident[] a = resolve("fT"+type1+"."+fa.getName().getIdentifier());
             return findType(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
             SuperFieldAccess sfa = (SuperFieldAccess)expr;
-            String[] a = resolve("f"+findParent("T").getKey(1)+"."+sfa.getName().getIdentifier());
+            Ident[] a = resolve("f"+findParent("T").getKey(1)+"."+sfa.getName().getIdentifier());
             return findType(a);
         } else if (expr instanceof CastExpression) {
             // "(String)"
@@ -687,28 +693,25 @@ public class UseExtractor extends Extractor {
         }
     }
 
-    private String[] resolve(String key) {
+    private void add1(Ident ident) {
+        _idents.add(new Ident[] { ident });
+    }
+
+    private Ident[] resolve(String key) {
         Logger.debug("resolve:", key);
-        String[] a = _fset.get(key);
+        Ident[] a = _fset.get(key);
         if (a != null) {
-            StringBuilder b = new StringBuilder();
-            for (String v : a) {
-                if (1 < b.length()) {
-                    b.append(" ");
-                }
-                b.append(v);
-            }
-            output(b.toString());
+            _idents.add(a);
         }
         return a;
     }
 
-    private String findType(String[] a) {
+    private String findType(Ident[] a) {
         String type = null;
         if (a != null) {
-            for (String v : a) {
-                if (v.startsWith("t")) {
-                    type = v.substring(1);
+            for (Ident v : a) {
+                if (v.type == IdentType.TYPE) {
+                    type = v.name;
                     Logger.debug("return:", type);
                     break;
                 }
@@ -720,10 +723,6 @@ public class UseExtractor extends Extractor {
     private String returnType(String type) {
         Logger.debug("return:", type);
         return type;
-    }
-
-    private void output(String feat) {
-        System.out.println(feat);
     }
 
     // main
@@ -816,10 +815,21 @@ public class UseExtractor extends Extractor {
         Logger.info("Pass 2.");
         for (String path : cunits.keySet()) {
             Logger.info("  parsing:", path);
-            out.println("+ "+path);
             CompilationUnit cunit = cunits.get(path);
             UseExtractor extractor = new UseExtractor(fset);
             cunit.accept(extractor);
+
+            out.println("+ "+path);
+            for (Ident[] idents : extractor.getIdents()) {
+                StringBuffer b = new StringBuffer();
+                for (Ident ident : idents) {
+                    if (0 < b.length()) {
+                        b.append(" ");
+                    }
+                    b.append(ident.type.code+ident.name);
+                }
+                out.println(b.toString());
+            }
             out.println();
         }
 

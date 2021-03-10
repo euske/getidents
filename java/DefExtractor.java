@@ -1,29 +1,18 @@
 //  DefExtractor.java
 //
 
+package getIdents;
 import java.io.*;
 import java.util.*;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
 
+
+//  DefExtractor
+//
 public class DefExtractor extends ASTVisitor {
 
-    private enum IdentType {
-        TYPE, FUNC, VAR
-    }
-
-    private class Ident {
-        IdentType type;
-        String name;
-
-        public Ident(IdentType type, String name) {
-            this.type = type;
-            this.name = name;
-        }
-    }
-
-
-    private List<Ident> idents = new ArrayList<>();
+    private List<Ident> _idents = new ArrayList<>();
 
     public DefExtractor() {
     }
@@ -71,13 +60,13 @@ public class DefExtractor extends ASTVisitor {
     }
 
     public Ident[] getIdents() {
-        Ident[] a = new Ident[idents.size()];
-        idents.toArray(a);
+        Ident[] a = new Ident[_idents.size()];
+        _idents.toArray(a);
         return a;
     }
 
     private void add(IdentType type, SimpleName name) {
-        idents.add(new Ident(type, name.getIdentifier()));
+        _idents.add(new Ident(type, name.getIdentifier()));
     }
 
     @SuppressWarnings("unchecked")
@@ -134,22 +123,7 @@ public class DefExtractor extends ASTVisitor {
 
             out.println("+ "+path);
             for (Ident ident : extractor.getIdents()) {
-                String t;
-                switch (ident.type) {
-                case TYPE:
-                    t = "t";
-                    break;
-                case FUNC:
-                    t = "f";
-                    break;
-                case VAR:
-                    t = "v";
-                    break;
-                default:
-                    t = "?";
-                    break;
-                }
-                out.println(t+ident.name);
+                out.println(ident.type.code+ident.name);
             }
             out.println();
         }
