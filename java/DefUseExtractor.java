@@ -1,102 +1,10 @@
-//  UseExtractor.java
+//  DefUseExtractor.java
 //
-
 package getIdents;
 import java.io.*;
 import java.util.*;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
-
-
-//  Utils
-//
-class Utils {
-
-    public static <T> String join(T[] a) {
-        return join(", ", a);
-    }
-    public static <T> String join(String delim, T[] a) {
-        StringBuilder b = new StringBuilder();
-        b.append("[");
-        for (T v : a) {
-            if (1 < b.length()) {
-                b.append(delim);
-            }
-            b.append((v == null)? "null" : v.toString());
-        }
-        b.append("]");
-        return b.toString();
-    }
-
-    public static <T> String join(List<T> a) {
-        return join(", ", a);
-    }
-    public static <T> String join(String delim, List<T> a) {
-        StringBuilder b = new StringBuilder();
-        b.append("[");
-        for (T v : a) {
-            if (1 < b.length()) {
-                b.append(delim);
-            }
-            b.append((v == null)? "null" : v.toString());
-        }
-        b.append("]");
-        return b.toString();
-    }
-
-    public static String typeName(Type type) {
-        if (type instanceof SimpleType) {
-            Name name = ((SimpleType)type).getName();
-            if (name instanceof SimpleName) {
-                return ((SimpleName)name).getIdentifier();
-            } else {
-                return ((QualifiedName)name).getName().getIdentifier();
-            }
-        } else if (type instanceof QualifiedType) {
-            return ((QualifiedType)type).getName().getIdentifier();
-        } else if (type instanceof NameQualifiedType) {
-            return ((NameQualifiedType)type).getName().getIdentifier();
-        } else if (type instanceof ArrayType) {
-            return Utils.typeName(((ArrayType)type).getElementType());
-        } else if (type instanceof ParameterizedType) {
-            return Utils.typeName(((ParameterizedType)type).getType());
-        } else {
-            return null;
-        }
-    }
-}
-
-
-//  Logger
-//
-class Logger {
-
-    public static PrintStream out = System.err;
-    public static int LogLevel = 0;
-
-    public static void info(Object ... a) {
-        if (1 <= LogLevel) {
-            println(a);
-        }
-    }
-
-    public static void debug(Object ... a) {
-        if (2 <= LogLevel) {
-            println(a);
-        }
-    }
-
-    public static void println(Object[] a) {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < a.length; i++) {
-            if (i != 0) {
-                b.append(" ");
-            }
-            b.append(a[i].toString());
-        }
-        out.println(b.toString());
-    }
-}
 
 
 //  FeatureSet
@@ -122,6 +30,7 @@ class FeatureSet {
         a.toArray(r);
         return r;
     }
+
 }
 
 
@@ -185,9 +94,9 @@ class Context {
 }
 
 
-//  Extractor
+//  NamespaceWalker
 //
-class Extractor extends ASTVisitor {
+class NamespaceWalker extends ASTVisitor {
 
     private Context _current = new Context(null, "");
     private List<Context> _stack = new ArrayList<Context>();
@@ -301,13 +210,13 @@ class Extractor extends ASTVisitor {
 }
 
 
-//  FeatureExtractor
+//  TypeExtractor
 //
-class FeatureExtractor extends Extractor {
+class TypeExtractor extends NamespaceWalker {
 
     private FeatureSet _fset;
 
-    public FeatureExtractor(FeatureSet fset) {
+    public TypeExtractor(FeatureSet fset) {
         super();
         _fset = fset;
     }
@@ -316,11 +225,12 @@ class FeatureExtractor extends Extractor {
     @SuppressWarnings("unchecked")
     public boolean visit(EnumDeclaration node) {
         super.visit(node);
+        String type = getCurrent().getKey(1);
         for (EnumConstantDeclaration frag :
                  (List<EnumConstantDeclaration>)node.enumConstants()) {
             String name = frag.getName().getIdentifier();
             String key = "v"+getCurrent()+"."+name;
-            put(key, new Ident(IdentType.TYPE, getCurrent().getKey(1)));
+            fadd(key, new Ident(IdentType.TYPE, type));
         }
         return true;
     }
@@ -334,19 +244,11 @@ class FeatureExtractor extends Extractor {
         for (SingleVariableDeclaration decl :
                  (List<SingleVariableDeclaration>)node.parameters()) {
             String name = decl.getName().getIdentifier();
-            put(key, new Ident(IdentType.VAR, name));
-            String type = Utils.typeName(decl.getType());
-            if (type != null) {
-                put(key, new Ident(IdentType.TYPE, type));
-            }
+            fadd(key, new Ident(IdentType.VAR, name));
         }
-        {
-            String name = node.getName().getIdentifier();
-            put(key, new Ident(IdentType.FUNC, name));
-            String type = Utils.typeName(node.getReturnType2());
-            if (type != null) {
-                put(key, new Ident(IdentType.TYPE, type));
-            }
+        String type = Utils.typeName(node.getReturnType2());
+        if (type != null) {
+            fadd(key, new Ident(IdentType.TYPE, type));
         }
         super.endVisit(node);
     }
@@ -355,10 +257,9 @@ class FeatureExtractor extends Extractor {
     public boolean visit(SingleVariableDeclaration node) {
         String name = node.getName().getIdentifier();
         String key = "v"+getCurrent()+"."+name;
-        put(key, new Ident(IdentType.VAR, name));
         String type = Utils.typeName(node.getType());
         if (type != null) {
-            put(key, new Ident(IdentType.TYPE, type));
+            fadd(key, new Ident(IdentType.TYPE, type));
         }
         return true;
     }
@@ -367,13 +268,12 @@ class FeatureExtractor extends Extractor {
     @SuppressWarnings("unchecked")
     public boolean visit(VariableDeclarationStatement node) {
         String type = Utils.typeName(node.getType());
-        for (VariableDeclarationFragment frag :
-                 (List<VariableDeclarationFragment>)node.fragments()) {
-            String name = frag.getName().getIdentifier();
-            String key = "v"+getCurrent()+"."+name;
-            put(key, new Ident(IdentType.VAR, name));
-            if (type != null) {
-                put(key, new Ident(IdentType.TYPE, type));
+        if (type != null) {
+            for (VariableDeclarationFragment frag :
+                     (List<VariableDeclarationFragment>)node.fragments()) {
+                String name = frag.getName().getIdentifier();
+                String key = "v"+getCurrent()+"."+name;
+                fadd(key, new Ident(IdentType.TYPE, type));
             }
         }
         return true;
@@ -385,39 +285,75 @@ class FeatureExtractor extends Extractor {
         Context parent = findParent("T");
         if (parent == null) return false;
         String type = Utils.typeName(node.getType());
-        for (VariableDeclarationFragment frag :
-                 (List<VariableDeclarationFragment>)node.fragments()) {
-            String name = frag.getName().getIdentifier();
-            String key = "f"+parent.getKey(1)+"."+name;
-            put(key, new Ident(IdentType.VAR, name));
-            if (type != null) {
-                put(key, new Ident(IdentType.TYPE, type));
+        if (type != null) {
+            for (VariableDeclarationFragment frag :
+                     (List<VariableDeclarationFragment>)node.fragments()) {
+                String name = frag.getName().getIdentifier();
+                String key = "f"+parent.getKey(1)+"."+name;
+                fadd(key, new Ident(IdentType.TYPE, type));
             }
         }
         return true;
     }
 
-    private void put(String key, Ident value) {
-        Logger.debug("put:", key, value);
+    private void fadd(String key, Ident value) {
+        Logger.debug("fadd:", key, value);
         _fset.add(key, value);
     }
 }
 
 
-//  UseExtractor
+//  DefUse
 //
-public class UseExtractor extends Extractor {
+abstract class DefUse {
+    public Ident ident;
+}
+class Def extends DefUse {
+    public Def(Ident ident) { this.ident = ident; }
+    public String toString() { return "<Def "+this.ident+">"; }
+}
+class Use extends DefUse {
+    public Use(Ident ident) { this.ident = ident; }
+    public String toString() { return "<Use "+this.ident+">"; }
+}
+
+
+
+//  DefUseExtractor
+//
+public class DefUseExtractor extends NamespaceWalker {
 
     private FeatureSet _fset;
-    private List<Ident[]> _idents = new ArrayList<Ident[]>();
+    private List<DefUse[]> _defuses = new ArrayList<DefUse[]>();
 
-    public UseExtractor(FeatureSet fset) {
+    public DefUseExtractor(FeatureSet fset) {
         super();
         _fset = fset;
     }
 
-    public List<Ident[]> getIdents() {
-        return _idents;
+    public List<DefUse[]> getResults() {
+        return _defuses;
+    }
+
+    @Override
+    public boolean visit(TypeDeclaration node) {
+        super.visit(node);
+        addDef(new Ident(IdentType.TYPE, node.getName().getIdentifier()));
+        return true;
+    }
+
+    @Override
+    public boolean visit(EnumDeclaration node) {
+        super.visit(node);
+        addDef(new Ident(IdentType.TYPE, node.getName().getIdentifier()));
+        return true;
+    }
+
+    @Override
+    public boolean visit(MethodDeclaration node) {
+        super.visit(node);
+        addDef(new Ident(IdentType.FUNC, node.getName().getIdentifier()));
+        return true;
     }
 
     @Override
@@ -456,6 +392,26 @@ public class UseExtractor extends Extractor {
         return true;
     }
     @Override
+    @SuppressWarnings("unchecked")
+    public boolean visit(VariableDeclarationStatement node) {
+        List<DefUse> a = new ArrayList<DefUse>();
+        String type = Utils.typeName(node.getType());
+        if (type != null) {
+            a.add(new Use(new Ident(IdentType.TYPE, type)));
+        }
+        for (VariableDeclarationFragment frag :
+                 (List<VariableDeclarationFragment>)node.fragments()) {
+            SimpleName name = frag.getName();
+            a.add(new Def(new Ident(IdentType.VAR, name.getIdentifier())));
+            Expression expr1 = frag.getInitializer();
+            if (expr1 != null) {
+                parseExpr(expr1);
+            }
+        }
+        addDefUse(a);
+        return true;
+    }
+    @Override
     public boolean visit(SwitchStatement node) {
         handleExpr(node.getExpression());
         return true;
@@ -474,145 +430,143 @@ public class UseExtractor extends Extractor {
         return true;
     }
     @Override
-    public boolean visit(VariableDeclarationFragment node) {
-        Expression expr = node.getInitializer();
-        if (expr != null) {
-            handleExpr(expr);
+    public boolean visit(SingleVariableDeclaration node) {
+        String name = node.getName().getIdentifier();
+        List<DefUse> a = new ArrayList<DefUse>();
+        String type = Utils.typeName(node.getType());
+        if (type != null) {
+            a.add(new Use(new Ident(IdentType.TYPE, type)));
         }
+        a.add(new Def(new Ident(IdentType.VAR, name)));
+        addDefUse(a);
         return true;
     }
 
     private void handleExpr(Expression expr) {
-        Logger.debug("handleExpr:", expr, "("+expr.getClass().getName()+")");
+        Logger.debug("handleExpr:", expr.getClass().getName());
         parseExpr(expr);
     }
 
     @SuppressWarnings("unchecked")
     private String parseExpr(Expression expr) {
         Logger.debug("parseExpr:", expr);
+        String type = null;
         if (expr instanceof Annotation) {
             // "@Annotation"
-            return null;
         } else if (expr instanceof Name) {
             // "a.b"
             Name name = (Name)expr;
-            Ident[] a = null;
             if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
+                String id = sname.getIdentifier();
                 Context context = getCurrent();
                 while (context != null) {
-                    a = resolve("v"+context+"."+sname.getIdentifier());
-                    if (a != null) break;
+                    type = resolveType("v"+context+"."+id);
+                    if (type != null) break;
                     context = context.getParent();
                 }
-                if (a == null) {
+                if (type == null) {
                     context = findParent("T");
                     while (context != null) {
-                        a = resolve("f"+context.getKey(1)+"."+sname.getIdentifier());
-                        if (a != null) break;
+                        type = resolveType("f"+context.getKey(1)+"."+id);
+                        if (type != null) break;
                         context = context.getParent();
                         if (context == null) break;
                         context = context.findParent("T");
                     }
                 }
+                if (type != null) {
+                    addUse(new Ident(IdentType.VAR, id));
+                }
             } else {
                 QualifiedName qname = (QualifiedName)name;
-                String type = parseExpr(qname.getQualifier());
-                if (type != null) {
-                    a = resolve("fT"+type+"."+qname.getName().getIdentifier());
+                String id = qname.getName().getIdentifier();
+                String klass = parseExpr(qname.getQualifier());
+                List<DefUse> a = new ArrayList<DefUse>();
+                if (klass != null) {
+                    a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                    type = resolveType("fT"+klass+"."+id);
                 }
-                if (a == null) {
-                    add1(new Ident(IdentType.VAR, qname.getName().getIdentifier()));
-                }
+                a.add(new Use(new Ident(IdentType.VAR, id)));
+                addDefUse(a);
             }
-            return findType(a);
         } else if (expr instanceof ThisExpression) {
             // "this"
-            return returnType(findParent("T").getKey(1).substring(1));
+            type = findParent("T").getKey(1).substring(1);
         } else if (expr instanceof BooleanLiteral) {
             // "true", "false"
-            return null;
         } else if (expr instanceof CharacterLiteral) {
             // "'c'"
-            return null;
         } else if (expr instanceof NullLiteral) {
             // "null"
-            return null;
         } else if (expr instanceof NumberLiteral) {
             // "42"
-            return null;
         } else if (expr instanceof StringLiteral) {
             // ""abc""
-            return "String";
+            type = "String";
         } else if (expr instanceof TypeLiteral) {
             // "A.class"
-            return null;
         } else if (expr instanceof PrefixExpression) {
             // "++x"
             // "!a", "+a", "-a", "~a"
             PrefixExpression prefix = (PrefixExpression)expr;
-            return parseExpr(prefix.getOperand());
+            type = parseExpr(prefix.getOperand());
         } else if (expr instanceof PostfixExpression) {
             // "y--"
             PostfixExpression postfix = (PostfixExpression)expr;
-            return parseExpr(postfix.getOperand());
+            type = parseExpr(postfix.getOperand());
         } else if (expr instanceof InfixExpression) {
             // "a+b"
             InfixExpression infix = (InfixExpression)expr;
-            parseExpr(infix.getLeftOperand());
-            return parseExpr(infix.getRightOperand());
+            type = parseExpr(infix.getLeftOperand());
+            parseExpr(infix.getRightOperand());
+            for (Expression expr1 :
+                     (List<Expression>)infix.extendedOperands()) {
+                parseExpr(expr1);
+            }
         } else if (expr instanceof ParenthesizedExpression) {
             // "(expr)"
             ParenthesizedExpression paren = (ParenthesizedExpression)expr;
-            return parseExpr(paren.getExpression());
+            type = parseExpr(paren.getExpression());
         } else if (expr instanceof Assignment) {
             // "p = q"
             Assignment assn = (Assignment)expr;
-            //parseExpr(assn.getLeftHandSide());
-            return parseExpr(assn.getRightHandSide());
+            parseAssign(assn.getLeftHandSide());
+            type = parseExpr(assn.getRightHandSide());
         } else if (expr instanceof VariableDeclarationExpression) {
             // "int a=2"
-            String type = null;
-            VariableDeclarationExpression decl =
-                (VariableDeclarationExpression)expr;
-            for (VariableDeclarationFragment frag :
-                     (List<VariableDeclarationFragment>)decl.fragments()) {
-                Expression expr1 = frag.getInitializer();
-                if (expr1 != null) {
-                    type = parseExpr(expr1);
-                }
-            }
-            return returnType(type);
         } else if (expr instanceof MethodInvocation) {
+            // "f(x)"
             MethodInvocation invoke = (MethodInvocation)expr;
-            Ident[] a = null;
             SimpleName name = invoke.getName();
+            String id = name.getIdentifier();
+            List<DefUse> a = new ArrayList<DefUse>();
+            a.add(new Use(new Ident(IdentType.FUNC, id)));
             Expression expr1 = invoke.getExpression();
             if (expr1 != null) {
-                String type1 = parseExpr(expr1);
-                if (type1 != null) {
-                    a = resolve("mT"+type1+".M"+name.getIdentifier());
+                String klass = parseExpr(expr1);
+                if (klass != null) {
+                    a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                    type = resolveFunc("mT"+klass+".M"+id, a);
                 }
-                if (a == null) {
-                    a = resolve("mT"+expr1+".M"+name.getIdentifier());
+                if (type == null) {
+                    type = resolveFunc("mT"+expr1+".M"+id, a);
                 }
             } else {
-                a = resolve("m"+findParent("T").getKey(1)+".M"+name.getIdentifier());
+                String klass = findParent("T").getKey(1).substring(1);
+                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                type = resolveFunc("mT"+klass+".M"+id, a);
             }
-            if (a == null) {
-                add1(new Ident(IdentType.FUNC, name.getIdentifier()));
-            }
+            addDefUse(a);
             for (Expression arg : (List<Expression>)invoke.arguments()) {
                 parseExpr(arg);
             }
-            return findType(a);
         } else if (expr instanceof SuperMethodInvocation) {
             // "super.method()"
             SuperMethodInvocation sinvoke = (SuperMethodInvocation)expr;
             for (Expression arg : (List<Expression>)sinvoke.arguments()) {
                 parseExpr(arg);
             }
-            return null;
         } else if (expr instanceof ArrayCreation) {
             // "new int[10]"
             ArrayCreation ac = (ArrayCreation)expr;
@@ -623,105 +577,250 @@ public class UseExtractor extends Extractor {
             if (init != null) {
                 parseExpr(init);
             }
-            return null;
         } else if (expr instanceof ArrayInitializer) {
             ArrayInitializer init = (ArrayInitializer)expr;
             for (Expression expr1 : (List<Expression>)init.expressions()) {
                 parseExpr(expr1);
             }
-            return null;
         } else if (expr instanceof ArrayAccess) {
             // "a[0]"
             ArrayAccess aa = (ArrayAccess)expr;
             parseExpr(aa.getIndex());
-            return parseExpr(aa.getArray());
+            type = parseExpr(aa.getArray());
         } else if (expr instanceof FieldAccess) {
             // "(expr).foo"
             FieldAccess fa = (FieldAccess)expr;
             Expression expr1 = fa.getExpression();
-            String type1 = parseExpr(expr1);
-            Ident[] a = resolve("fT"+type1+"."+fa.getName().getIdentifier());
-            return findType(a);
+            List<DefUse> a = new ArrayList<DefUse>();
+            String id = fa.getName().getIdentifier();
+            String klass = parseExpr(expr1);
+            if (klass != null) {
+                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+            }
+            type = resolveType("fT"+klass+"."+id);
+            a.add(new Use(new Ident(IdentType.VAR, id)));
+            addDefUse(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
             SuperFieldAccess sfa = (SuperFieldAccess)expr;
-            Ident[] a = resolve("f"+findParent("T").getKey(1)+"."+sfa.getName().getIdentifier());
-            return findType(a);
+            List<DefUse> a = new ArrayList<DefUse>();
+            String id = sfa.getName().getIdentifier();
+            String klass = findParent("T").getKey(1).substring(1);
+            if (klass != null) {
+                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+            }
+            type = resolveType("fT"+klass+"."+id);
+            a.add(new Use(new Ident(IdentType.VAR, id)));
         } else if (expr instanceof CastExpression) {
             // "(String)"
             CastExpression cast = (CastExpression)expr;
             parseExpr(cast.getExpression());
-            String type = Utils.typeName(cast.getType());
-            return returnType(type);
+            type = Utils.typeName(cast.getType());
         } else if (expr instanceof ClassInstanceCreation) {
             // "new T()"
             ClassInstanceCreation cstr = (ClassInstanceCreation)expr;
-            String type = Utils.typeName(cstr.getType());
+            List<DefUse> a = new ArrayList<DefUse>();
+            type = Utils.typeName(cstr.getType());
+            a.add(new Use(new Ident(IdentType.TYPE, type)));
             Expression expr1 = cstr.getExpression();
             if (expr1 != null) {
                 parseExpr(expr1);
             }
-            resolve("mT"+type+".M"+type);
+            resolveFunc("mT"+type+".M"+type, a);
             for (Expression arg : (List<Expression>)cstr.arguments()) {
                 parseExpr(arg);
             }
-            return returnType(type);
         } else if (expr instanceof ConditionalExpression) {
             // "c? a : b"
             ConditionalExpression cond = (ConditionalExpression)expr;
             parseExpr(cond.getExpression());
             parseExpr(cond.getThenExpression());
-            return parseExpr(cond.getElseExpression());
+            type = parseExpr(cond.getElseExpression());
         } else if (expr instanceof InstanceofExpression) {
             // "a instanceof A"
             InstanceofExpression instof = (InstanceofExpression)expr;
-            Type type = instof.getRightOperand();
+            //Type type = instof.getRightOperand();
             parseExpr(instof.getLeftOperand());
-            return null;
         } else if (expr instanceof LambdaExpression) {
             // "x -> { ... }"
-            return null;
         } else if (expr instanceof ExpressionMethodReference) {
-            return null;
+
         } else if (expr instanceof MethodReference) {
             //  CreationReference
             //  SuperMethodReference
             //  TypeMethodReference
-            return null;
-        } else {
-            return null;
-        }
-    }
-
-    private void add1(Ident ident) {
-        _idents.add(new Ident[] { ident });
-    }
-
-    private Ident[] resolve(String key) {
-        Logger.debug("resolve:", key);
-        Ident[] a = _fset.get(key);
-        if (a != null) {
-            _idents.add(a);
-        }
-        return a;
-    }
-
-    private String findType(Ident[] a) {
-        String type = null;
-        if (a != null) {
-            for (Ident v : a) {
-                if (v.type == IdentType.TYPE) {
-                    type = v.name;
-                    Logger.debug("return:", type);
-                    break;
-                }
-            }
         }
         return type;
     }
 
-    private String returnType(String type) {
-        Logger.debug("return:", type);
+    @SuppressWarnings("unchecked")
+    private void parseAssign(Expression expr) {
+        Logger.debug("parseAssign:", expr);
+        if (expr instanceof Annotation) {
+            // "@Annotation"
+        } else if (expr instanceof Name) {
+            // "a.b"
+            Name name = (Name)expr;
+            if (name instanceof SimpleName) {
+                SimpleName sname = (SimpleName)name;
+                String id = sname.getIdentifier();
+                addDef(new Ident(IdentType.VAR, id));
+            } else {
+                QualifiedName qname = (QualifiedName)name;
+                String id = qname.getName().getIdentifier();
+                String klass = parseExpr(qname.getQualifier());
+                List<DefUse> a = new ArrayList<DefUse>();
+                if (klass != null) {
+                    a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                }
+                a.add(new Def(new Ident(IdentType.VAR, id)));
+                addDefUse(a);
+            }
+        } else if (expr instanceof ThisExpression) {
+            // "this"
+        } else if (expr instanceof BooleanLiteral) {
+            // "true", "false"
+        } else if (expr instanceof CharacterLiteral) {
+            // "'c'"
+        } else if (expr instanceof NullLiteral) {
+            // "null"
+        } else if (expr instanceof NumberLiteral) {
+            // "42"
+        } else if (expr instanceof StringLiteral) {
+            // ""abc""
+        } else if (expr instanceof TypeLiteral) {
+            // "A.class"
+        } else if (expr instanceof PrefixExpression) {
+            // "++x"
+            // "!a", "+a", "-a", "~a"
+        } else if (expr instanceof PostfixExpression) {
+            // "y--"
+        } else if (expr instanceof InfixExpression) {
+            // "a+b"
+        } else if (expr instanceof ParenthesizedExpression) {
+            // "(expr)"
+            ParenthesizedExpression paren = (ParenthesizedExpression)expr;
+            parseAssign(paren.getExpression());
+        } else if (expr instanceof Assignment) {
+            // "p = q"
+            Assignment assn = (Assignment)expr;
+            parseAssign(assn.getLeftHandSide());
+        } else if (expr instanceof VariableDeclarationExpression) {
+            // "int a=2"
+            VariableDeclarationExpression decl =
+                (VariableDeclarationExpression)expr;
+            List<DefUse> a = new ArrayList<DefUse>();
+            String type = Utils.typeName(decl.getType());
+            if (type != null) {
+                a.add(new Use(new Ident(IdentType.TYPE, type)));
+            }
+            for (VariableDeclarationFragment frag :
+                     (List<VariableDeclarationFragment>)decl.fragments()) {
+                SimpleName name = frag.getName();
+                a.add(new Use(new Ident(IdentType.VAR, name.getIdentifier())));
+                Expression expr1 = frag.getInitializer();
+                if (expr1 != null) {
+                    parseExpr(expr1);
+                }
+            }
+            addDefUse(a);
+        } else if (expr instanceof MethodInvocation) {
+            // "f(x)"
+        } else if (expr instanceof SuperMethodInvocation) {
+            // "super.method()"
+        } else if (expr instanceof ArrayCreation) {
+            // "new int[10]"
+        } else if (expr instanceof ArrayInitializer) {
+        } else if (expr instanceof ArrayAccess) {
+            // "a[0]"
+            ArrayAccess aa = (ArrayAccess)expr;
+            parseAssign(aa.getArray());
+        } else if (expr instanceof FieldAccess) {
+            // "(expr).foo"
+            FieldAccess fa = (FieldAccess)expr;
+            Expression expr1 = fa.getExpression();
+            List<DefUse> a = new ArrayList<DefUse>();
+            String id = fa.getName().getIdentifier();
+            String klass = parseExpr(expr1);
+            if (klass != null) {
+                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+            }
+            a.add(new Def(new Ident(IdentType.VAR, id)));
+            addDefUse(a);
+        } else if (expr instanceof SuperFieldAccess) {
+            // "super.baa"
+            SuperFieldAccess sfa = (SuperFieldAccess)expr;
+            List<DefUse> a = new ArrayList<DefUse>();
+            String id = sfa.getName().getIdentifier();
+            String klass = findParent("T").getKey(1).substring(1);
+            if (klass != null) {
+                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+            }
+            a.add(new Def(new Ident(IdentType.VAR, id)));
+        } else if (expr instanceof CastExpression) {
+            // "(String)"
+        } else if (expr instanceof ClassInstanceCreation) {
+            // "new T()"
+        } else if (expr instanceof ConditionalExpression) {
+            // "c? a : b"
+        } else if (expr instanceof InstanceofExpression) {
+            // "a instanceof A"
+        } else if (expr instanceof LambdaExpression) {
+            // "x -> { ... }"
+        } else if (expr instanceof ExpressionMethodReference) {
+
+        } else if (expr instanceof MethodReference) {
+            //  CreationReference
+            //  SuperMethodReference
+            //  TypeMethodReference
+        }
+    }
+
+    private void addDef(Ident ident) {
+        Logger.debug("addDef:", ident);
+        _defuses.add(new DefUse[] { new Def(ident) });
+    }
+
+    private void addUse(Ident ident) {
+        Logger.debug("addUse:", ident);
+        _defuses.add(new DefUse[] { new Use(ident) });
+    }
+
+    private void addDefUse(List<DefUse> uses) {
+        DefUse[] a = new DefUse[uses.size()];
+        uses.toArray(a);
+        Logger.debug("addDefUse:", Utils.join(a));
+        _defuses.add(a);
+    }
+
+    private String resolveType(String key) {
+        String type = null;
+        Ident[] idents = _fset.get(key);
+        if (idents != null) {
+            for (Ident ident : idents) {
+                if (ident.type == IdentType.TYPE) {
+                    type = ident.name;
+                    break;
+                }
+            }
+        }
+        Logger.debug("resolveType:", key, "->", type);
+        return type;
+    }
+
+    private String resolveFunc(String key, List<DefUse> a) {
+        String type = null;
+        Ident[] idents = _fset.get(key);
+        if (idents != null) {
+            for (Ident ident : idents) {
+                if (ident.type == IdentType.TYPE) {
+                    type = ident.name;
+                } else if (ident.type == IdentType.VAR) {
+                    a.add(new Def(ident));
+                }
+            }
+        }
+        Logger.debug("resolveFunc:", key, "->", type);
         return type;
     }
 
@@ -808,7 +907,7 @@ public class UseExtractor extends Extractor {
             CompilationUnit cunit = (CompilationUnit)parser.createAST(null);
             cunits.put(path, cunit);
 
-            FeatureExtractor extractor = new FeatureExtractor(fset);
+            TypeExtractor extractor = new TypeExtractor(fset);
             cunit.accept(extractor);
         }
 
@@ -816,17 +915,19 @@ public class UseExtractor extends Extractor {
         for (String path : cunits.keySet()) {
             Logger.info("  parsing:", path);
             CompilationUnit cunit = cunits.get(path);
-            UseExtractor extractor = new UseExtractor(fset);
+            DefUseExtractor extractor = new DefUseExtractor(fset);
             cunit.accept(extractor);
 
             out.println("+ "+path);
-            for (Ident[] idents : extractor.getIdents()) {
+            for (DefUse[] defuses : extractor.getResults()) {
                 StringBuffer b = new StringBuffer();
-                for (Ident ident : idents) {
+                for (DefUse du : defuses) {
                     if (0 < b.length()) {
                         b.append(" ");
                     }
-                    b.append(ident.type.code+ident.name);
+                    Ident ident = du.ident;
+                    String code = ident.type.code;
+                    b.append(((du instanceof Def)? code.toUpperCase() : code) + ident.name);
                 }
                 out.println(b.toString());
             }

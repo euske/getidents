@@ -51,7 +51,9 @@
   </target>
 
   <target name="run" depends="build">
-    <java classname="UseExtractor">
+    <java classname="getIdents.DefUseExtractor">
+      <arg value="-v" />
+      <arg value="-v" />
       <arg file="${input}" />
       <classpath location="${buildDir}" />
       <classpath refid="build.classpath"/>
