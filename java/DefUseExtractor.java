@@ -316,6 +316,10 @@ class Use extends DefUse {
     public Use(Ident ident) { this.ident = ident; }
     public String toString() { return "<Use "+this.ident+">"; }
 }
+class ReDef extends DefUse {
+    public ReDef(Ident ident) { this.ident = ident; }
+    public String toString() { return "<ReDef "+this.ident+">"; }
+}
 
 
 
@@ -338,21 +342,21 @@ public class DefUseExtractor extends NamespaceWalker {
     @Override
     public boolean visit(TypeDeclaration node) {
         super.visit(node);
-        addDef(new Ident(IdentType.TYPE, node.getName().getIdentifier()));
+        addu(new Def(new Ident(IdentType.TYPE, node.getName().getIdentifier())));
         return true;
     }
 
     @Override
     public boolean visit(EnumDeclaration node) {
         super.visit(node);
-        addDef(new Ident(IdentType.TYPE, node.getName().getIdentifier()));
+        addu(new Def(new Ident(IdentType.TYPE, node.getName().getIdentifier())));
         return true;
     }
 
     @Override
     public boolean visit(MethodDeclaration node) {
         super.visit(node);
-        addDef(new Ident(IdentType.FUNC, node.getName().getIdentifier()));
+        addu(new Def(new Ident(IdentType.FUNC, node.getName().getIdentifier())));
         return true;
     }
 
@@ -408,7 +412,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 parseExpr(expr1);
             }
         }
-        addDefUse(a);
+        addu(a);
         return true;
     }
     @Override
@@ -438,7 +442,7 @@ public class DefUseExtractor extends NamespaceWalker {
             a.add(new Use(new Ident(IdentType.TYPE, type)));
         }
         a.add(new Def(new Ident(IdentType.VAR, name)));
-        addDefUse(a);
+        addu(a);
         return true;
     }
 
@@ -476,7 +480,7 @@ public class DefUseExtractor extends NamespaceWalker {
                     }
                 }
                 if (type != null) {
-                    addUse(new Ident(IdentType.VAR, id));
+                    addu(new Use(new Ident(IdentType.VAR, id)));
                 }
             } else {
                 QualifiedName qname = (QualifiedName)name;
@@ -488,7 +492,7 @@ public class DefUseExtractor extends NamespaceWalker {
                     type = resolveType("fT"+klass+"."+id);
                 }
                 a.add(new Use(new Ident(IdentType.VAR, id)));
-                addDefUse(a);
+                addu(a);
             }
         } else if (expr instanceof ThisExpression) {
             // "this"
@@ -557,7 +561,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 a.add(new Use(new Ident(IdentType.TYPE, klass)));
                 type = resolveFunc("mT"+klass+".M"+id, a);
             }
-            addDefUse(a);
+            addu(a);
             for (Expression arg : (List<Expression>)invoke.arguments()) {
                 parseExpr(arg);
             }
@@ -599,7 +603,7 @@ public class DefUseExtractor extends NamespaceWalker {
             }
             type = resolveType("fT"+klass+"."+id);
             a.add(new Use(new Ident(IdentType.VAR, id)));
-            addDefUse(a);
+            addu(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
             SuperFieldAccess sfa = (SuperFieldAccess)expr;
@@ -664,7 +668,7 @@ public class DefUseExtractor extends NamespaceWalker {
             if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
                 String id = sname.getIdentifier();
-                addDef(new Ident(IdentType.VAR, id));
+                addu(new ReDef(new Ident(IdentType.VAR, id)));
             } else {
                 QualifiedName qname = (QualifiedName)name;
                 String id = qname.getName().getIdentifier();
@@ -673,8 +677,8 @@ public class DefUseExtractor extends NamespaceWalker {
                 if (klass != null) {
                     a.add(new Use(new Ident(IdentType.TYPE, klass)));
                 }
-                a.add(new Def(new Ident(IdentType.VAR, id)));
-                addDefUse(a);
+                a.add(new ReDef(new Ident(IdentType.VAR, id)));
+                addu(a);
             }
         } else if (expr instanceof ThisExpression) {
             // "this"
@@ -723,7 +727,7 @@ public class DefUseExtractor extends NamespaceWalker {
                     parseExpr(expr1);
                 }
             }
-            addDefUse(a);
+            addu(a);
         } else if (expr instanceof MethodInvocation) {
             // "f(x)"
         } else if (expr instanceof SuperMethodInvocation) {
@@ -746,7 +750,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 a.add(new Use(new Ident(IdentType.TYPE, klass)));
             }
             a.add(new Def(new Ident(IdentType.VAR, id)));
-            addDefUse(a);
+            addu(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
             SuperFieldAccess sfa = (SuperFieldAccess)expr;
@@ -776,20 +780,15 @@ public class DefUseExtractor extends NamespaceWalker {
         }
     }
 
-    private void addDef(Ident ident) {
-        Logger.debug("addDef:", ident);
-        _defuses.add(new DefUse[] { new Def(ident) });
+    private void addu(DefUse du) {
+        Logger.debug("addu:", du);
+        _defuses.add(new DefUse[] { du });
     }
 
-    private void addUse(Ident ident) {
-        Logger.debug("addUse:", ident);
-        _defuses.add(new DefUse[] { new Use(ident) });
-    }
-
-    private void addDefUse(List<DefUse> uses) {
-        DefUse[] a = new DefUse[uses.size()];
-        uses.toArray(a);
-        Logger.debug("addDefUse:", Utils.join(a));
+    private void addu(List<DefUse> dus) {
+        Logger.debug("addu:", Utils.join(dus));
+        DefUse[] a = new DefUse[dus.size()];
+        dus.toArray(a);
         _defuses.add(a);
     }
 
@@ -816,7 +815,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 if (ident.type == IdentType.TYPE) {
                     type = ident.name;
                 } else if (ident.type == IdentType.VAR) {
-                    a.add(new Def(ident));
+                    a.add(new ReDef(ident));
                 }
             }
         }
@@ -927,7 +926,13 @@ public class DefUseExtractor extends NamespaceWalker {
                     }
                     Ident ident = du.ident;
                     String code = ident.type.code;
-                    b.append(((du instanceof Def)? code.toUpperCase() : code) + ident.name);
+                    if (du instanceof ReDef) {
+                        assert ident.type == IdentType.VAR;
+                        code = "!";
+                    } else if (du instanceof Def) {
+                        code = code.toUpperCase();
+                    }
+                    b.append(code + ident.name);
                 }
                 out.println(b.toString());
             }
