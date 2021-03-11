@@ -309,16 +309,29 @@ abstract class DefUse {
     public Ident ident;
 }
 class Def extends DefUse {
-    public Def(Ident ident) { this.ident = ident; }
-    public String toString() { return "<Def "+this.ident+">"; }
+    public Def(Ident ident) {
+        this.ident = ident;
+    }
+    public String toString() {
+        return this.ident.type.code.toUpperCase()+this.ident.name;
+    }
 }
 class Use extends DefUse {
-    public Use(Ident ident) { this.ident = ident; }
-    public String toString() { return "<Use "+this.ident+">"; }
+    public Use(Ident ident) {
+        this.ident = ident;
+    }
+    public String toString() {
+        return this.ident.type.code+this.ident.name;
+    }
 }
 class ReDef extends DefUse {
-    public ReDef(Ident ident) { this.ident = ident; }
-    public String toString() { return "<ReDef "+this.ident+">"; }
+    public ReDef(Ident ident) {
+        assert ident.type == IdentType.VAR;
+        this.ident = ident;
+    }
+    public String toString() {
+        return "!"+this.ident.name;
+    }
 }
 
 
@@ -924,15 +937,7 @@ public class DefUseExtractor extends NamespaceWalker {
                     if (0 < b.length()) {
                         b.append(" ");
                     }
-                    Ident ident = du.ident;
-                    String code = ident.type.code;
-                    if (du instanceof ReDef) {
-                        assert ident.type == IdentType.VAR;
-                        code = "!";
-                    } else if (du instanceof Def) {
-                        code = code.toUpperCase();
-                    }
-                    b.append(code + ident.name);
+                    b.append(du.toString());
                 }
                 out.println(b.toString());
             }
