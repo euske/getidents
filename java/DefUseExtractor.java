@@ -384,11 +384,13 @@ public class DefUseExtractor extends NamespaceWalker {
     public boolean visit(TypeDeclaration node) {
         super.visit(node);
         addu(new DefType(node.getName().getIdentifier()));
-        for (String typename : Utils.getTypeNames(node.getSuperclassType())) {
-            addu(new ExtType(typename));
+        String stypename = Utils.typeName(node.getSuperclassType());
+        if (stypename != null) {
+            addu(new ExtType(stypename));
         }
         for (Type type1 : (List<Type>)node.superInterfaceTypes()) {
-            for (String typename : Utils.getTypeNames(type1)) {
+            String typename = Utils.typeName(type1);
+            if (typename != null) {
                 addu(new ExtType(typename));
             }
         }
@@ -448,7 +450,8 @@ public class DefUseExtractor extends NamespaceWalker {
     @SuppressWarnings("unchecked")
     public boolean visit(VariableDeclarationStatement node) {
         List<DefUse> a = new ArrayList<DefUse>();
-        for (String typename : Utils.getTypeNames(node.getType())) {
+        String typename = Utils.typeName(node.getType());
+        if (typename != null) {
             a.add(new UseType(typename));
         }
         for (VariableDeclarationFragment frag :
@@ -485,7 +488,8 @@ public class DefUseExtractor extends NamespaceWalker {
     public boolean visit(SingleVariableDeclaration node) {
         String name = node.getName().getIdentifier();
         List<DefUse> a = new ArrayList<DefUse>();
-        for (String typename : Utils.getTypeNames(node.getType())) {
+        String typename = Utils.typeName(node.getType());
+        if (typename != null) {
             a.add(new UseType(typename));
         }
         a.add(new DefVar(name));
