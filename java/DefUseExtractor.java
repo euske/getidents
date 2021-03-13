@@ -1,5 +1,24 @@
 //  DefUseExtractor.java
 //
+//  T: define type...
+//     class Foo { }
+//  r: refer type...
+//     x = foo.a; foo.baa();
+//  e: extend type...
+//     class Bar extends Foo { }
+//  t: use type...
+//     Foo foo = new Foo();
+//  F: define function...
+//     void baa() { }
+//  f: use function...
+//     baa();
+//  V: define variable...
+//     int x = 1;
+//  v: use variable;
+//     print(x);
+//  a: reassign variable;
+//     x = 1;
+//
 package getIdents;
 import java.io.*;
 import java.util.*;
@@ -16,10 +35,6 @@ abstract class Feat {
 class TypeFeat extends Feat {
     TypeFeat(String name) { super(name); }
     @Override public String toString() { return "T"+this.name; }
-}
-class FuncFeat extends Feat {
-    FuncFeat(String name) { super(name); }
-    @Override public String toString() { return "F"+this.name; }
 }
 class VarFeat extends Feat {
     VarFeat(String name) { super(name); }
@@ -333,13 +348,17 @@ class DefType extends DefUse {
     DefType(String name) { super(name); }
     @Override public String toString() { return "T"+this.name; }
 }
-class UseType extends DefUse {
-    UseType(String name) { super(name); }
-    @Override public String toString() { return "t"+this.name; }
+class RefType extends DefUse {
+    RefType(String name) { super(name); }
+    @Override public String toString() { return "r"+this.name; }
 }
 class ExtType extends DefUse {
     ExtType(String name) { super(name); }
     @Override public String toString() { return "e"+this.name; }
+}
+class UseType extends DefUse {
+    UseType(String name) { super(name); }
+    @Override public String toString() { return "t"+this.name; }
 }
 class DefFunc extends DefUse {
     DefFunc(String name) { super(name); }
@@ -539,7 +558,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 String klass = parseExpr(qname.getQualifier());
                 List<DefUse> a = new ArrayList<DefUse>();
                 if (klass != null) {
-                    a.add(new UseType(klass));
+                    a.add(new RefType(klass));
                     typename = resolveType("fT"+klass+"."+id);
                 }
                 a.add(new UseType(id));
@@ -601,7 +620,7 @@ public class DefUseExtractor extends NamespaceWalker {
             if (expr1 != null) {
                 String klass = parseExpr(expr1);
                 if (klass != null) {
-                    a.add(new UseType(klass));
+                    a.add(new RefType(klass));
                     typename = resolveFunc("mT"+klass+".M"+id, a);
                 }
                 if (typename == null) {
@@ -609,7 +628,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 }
             } else {
                 String klass = findParent("T").getKey(1).substring(1);
-                a.add(new UseType(klass));
+                a.add(new RefType(klass));
                 typename = resolveFunc("mT"+klass+".M"+id, a);
             }
             addu(a);
@@ -650,7 +669,7 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = fa.getName().getIdentifier();
             String klass = parseExpr(expr1);
             if (klass != null) {
-                a.add(new UseType(klass));
+                a.add(new RefType(klass));
             }
             typename = resolveType("fT"+klass+"."+id);
             a.add(new UseVar(id));
@@ -662,7 +681,7 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = sfa.getName().getIdentifier();
             String klass = findParent("T").getKey(1).substring(1);
             if (klass != null) {
-                a.add(new UseType(klass));
+                a.add(new RefType(klass));
             }
             typename = resolveType("fT"+klass+"."+id);
             a.add(new UseVar(id));
@@ -726,7 +745,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 String klass = parseExpr(qname.getQualifier());
                 List<DefUse> a = new ArrayList<DefUse>();
                 if (klass != null) {
-                    a.add(new UseType(klass));
+                    a.add(new RefType(klass));
                 }
                 a.add(new AssVar(id));
                 addu(a);
@@ -767,7 +786,7 @@ public class DefUseExtractor extends NamespaceWalker {
             List<DefUse> a = new ArrayList<DefUse>();
             String typename = Utils.typeName(decl.getType());
             if (typename != null) {
-                a.add(new UseType(typename));
+                a.add(new RefType(typename));
             }
             for (VariableDeclarationFragment frag :
                      (List<VariableDeclarationFragment>)decl.fragments()) {
@@ -798,7 +817,7 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = fa.getName().getIdentifier();
             String klass = parseExpr(expr1);
             if (klass != null) {
-                a.add(new UseType(klass));
+                a.add(new RefType(klass));
             }
             a.add(new DefVar(id));
             addu(a);
@@ -809,7 +828,7 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = sfa.getName().getIdentifier();
             String klass = findParent("T").getKey(1).substring(1);
             if (klass != null) {
-                a.add(new UseType(klass));
+                a.add(new RefType(klass));
             }
             a.add(new DefVar(id));
         } else if (expr instanceof CastExpression) {
