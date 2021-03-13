@@ -6,7 +6,7 @@
 //     x = foo.a; foo.baa();
 //  e: extend type...
 //     class Bar extends Foo { }
-//  t: use type...
+//  u: use type...
 //     Foo foo = new Foo();
 //  F: define function...
 //     void baa() { }
@@ -358,7 +358,7 @@ class ExtType extends DefUse {
 }
 class UseType extends DefUse {
     UseType(String name) { super(name); }
-    @Override public String toString() { return "t"+this.name; }
+    @Override public String toString() { return "u"+this.name; }
 }
 class DefFunc extends DefUse {
     DefFunc(String name) { super(name); }
@@ -469,8 +469,7 @@ public class DefUseExtractor extends NamespaceWalker {
     @SuppressWarnings("unchecked")
     public boolean visit(VariableDeclarationStatement node) {
         List<DefUse> a = new ArrayList<DefUse>();
-        String typename = Utils.typeName(node.getType());
-        if (typename != null) {
+        for (String typename : Utils.getTypeNames(node.getType())) {
             a.add(new UseType(typename));
         }
         for (VariableDeclarationFragment frag :
@@ -507,8 +506,7 @@ public class DefUseExtractor extends NamespaceWalker {
     public boolean visit(SingleVariableDeclaration node) {
         String name = node.getName().getIdentifier();
         List<DefUse> a = new ArrayList<DefUse>();
-        String typename = Utils.typeName(node.getType());
-        if (typename != null) {
+        for (String typename : Utils.getTypeNames(node.getType())) {
             a.add(new UseType(typename));
         }
         a.add(new DefVar(name));
@@ -694,8 +692,12 @@ public class DefUseExtractor extends NamespaceWalker {
             // "new T()"
             ClassInstanceCreation cstr = (ClassInstanceCreation)expr;
             List<DefUse> a = new ArrayList<DefUse>();
-            typename = Utils.typeName(cstr.getType());
-            a.add(new UseType(typename));
+            for (String typename1 : Utils.getTypeNames(cstr.getType())) {
+                a.add(new UseType(typename1));
+                if (typename != null) {
+                    typename = typename1;
+                }
+            }
             Expression expr1 = cstr.getExpression();
             if (expr1 != null) {
                 parseExpr(expr1);
