@@ -1,6 +1,6 @@
 package foo.bar;
 
-class Person {
+class Person extends Object {
 
     String name;
 

@@ -7,26 +7,46 @@ import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
 
 
+//  Feat
+//
+abstract class Feat {
+    public String name;
+    public Feat(String name) { this.name = name; }
+}
+class TypeFeat extends Feat {
+    TypeFeat(String name) { super(name); }
+    @Override public String toString() { return "T"+this.name; }
+}
+class FuncFeat extends Feat {
+    FuncFeat(String name) { super(name); }
+    @Override public String toString() { return "F"+this.name; }
+}
+class VarFeat extends Feat {
+    VarFeat(String name) { super(name); }
+    @Override public String toString() { return "V"+this.name; }
+}
+
+
 //  FeatureSet
 //
 class FeatureSet {
 
-    private Map<String, List<Ident> > _feats =
-        new HashMap<String, List<Ident> >();
+    private Map<String, List<Feat> > _feats =
+        new HashMap<String, List<Feat> >();
 
-    public void add(String k, Ident v) {
-        List<Ident> a = _feats.get(k);
+    public void add(String k, Feat v) {
+        List<Feat> a = _feats.get(k);
         if (a == null) {
-            a = new ArrayList<Ident>();
+            a = new ArrayList<Feat>();
             _feats.put(k, a);
         }
         a.add(v);
     }
 
-    public Ident[] get(String k) {
-        List<Ident> a = _feats.get(k);
+    public Feat[] get(String k) {
+        List<Feat> a = _feats.get(k);
         if (a == null) return null;
-        Ident[] r = new Ident[a.size()];
+        Feat[] r = new Feat[a.size()];
         a.toArray(r);
         return r;
     }
@@ -230,7 +250,7 @@ class TypeExtractor extends NamespaceWalker {
                  (List<EnumConstantDeclaration>)node.enumConstants()) {
             String name = frag.getName().getIdentifier();
             String key = "v"+getCurrent()+"."+name;
-            fadd(key, new Ident(IdentType.TYPE, type));
+            fadd(key, new TypeFeat(type));
         }
         return true;
     }
@@ -244,11 +264,11 @@ class TypeExtractor extends NamespaceWalker {
         for (SingleVariableDeclaration decl :
                  (List<SingleVariableDeclaration>)node.parameters()) {
             String name = decl.getName().getIdentifier();
-            fadd(key, new Ident(IdentType.VAR, name));
+            fadd(key, new VarFeat(name));
         }
         String type = Utils.typeName(node.getReturnType2());
         if (type != null) {
-            fadd(key, new Ident(IdentType.TYPE, type));
+            fadd(key, new TypeFeat(type));
         }
         super.endVisit(node);
     }
@@ -259,7 +279,7 @@ class TypeExtractor extends NamespaceWalker {
         String key = "v"+getCurrent()+"."+name;
         String type = Utils.typeName(node.getType());
         if (type != null) {
-            fadd(key, new Ident(IdentType.TYPE, type));
+            fadd(key, new TypeFeat(type));
         }
         return true;
     }
@@ -273,7 +293,7 @@ class TypeExtractor extends NamespaceWalker {
                      (List<VariableDeclarationFragment>)node.fragments()) {
                 String name = frag.getName().getIdentifier();
                 String key = "v"+getCurrent()+"."+name;
-                fadd(key, new Ident(IdentType.TYPE, type));
+                fadd(key, new TypeFeat(type));
             }
         }
         return true;
@@ -290,13 +310,13 @@ class TypeExtractor extends NamespaceWalker {
                      (List<VariableDeclarationFragment>)node.fragments()) {
                 String name = frag.getName().getIdentifier();
                 String key = "f"+parent.getKey(1)+"."+name;
-                fadd(key, new Ident(IdentType.TYPE, type));
+                fadd(key, new TypeFeat(type));
             }
         }
         return true;
     }
 
-    private void fadd(String key, Ident value) {
+    private void fadd(String key, Feat value) {
         Logger.debug("fadd:", key, value);
         _fset.add(key, value);
     }
@@ -306,34 +326,41 @@ class TypeExtractor extends NamespaceWalker {
 //  DefUse
 //
 abstract class DefUse {
-    public Ident ident;
+    public String name;
+    public DefUse(String name) { this.name = name; }
 }
-class Def extends DefUse {
-    public Def(Ident ident) {
-        this.ident = ident;
-    }
-    public String toString() {
-        return this.ident.type.code.toUpperCase()+this.ident.name;
-    }
+class DefType extends DefUse {
+    DefType(String name) { super(name); }
+    @Override public String toString() { return "T"+this.name; }
 }
-class Use extends DefUse {
-    public Use(Ident ident) {
-        this.ident = ident;
-    }
-    public String toString() {
-        return this.ident.type.code+this.ident.name;
-    }
+class UseType extends DefUse {
+    UseType(String name) { super(name); }
+    @Override public String toString() { return "t"+this.name; }
 }
-class ReDef extends DefUse {
-    public ReDef(Ident ident) {
-        assert ident.type == IdentType.VAR;
-        this.ident = ident;
-    }
-    public String toString() {
-        return "!"+this.ident.name;
-    }
+class ExtType extends DefUse {
+    ExtType(String name) { super(name); }
+    @Override public String toString() { return "e"+this.name; }
 }
-
+class DefFunc extends DefUse {
+    DefFunc(String name) { super(name); }
+    @Override public String toString() { return "F"+this.name; }
+}
+class UseFunc extends DefUse {
+    UseFunc(String name) { super(name); }
+    @Override public String toString() { return "f"+this.name; }
+}
+class DefVar extends DefUse {
+    DefVar(String name) { super(name); }
+    @Override public String toString() { return "V"+this.name; }
+}
+class UseVar extends DefUse {
+    UseVar(String name) { super(name); }
+    @Override public String toString() { return "v"+this.name; }
+}
+class AssVar extends DefUse {
+    AssVar(String name) { super(name); }
+    @Override public String toString() { return "a"+this.name; }
+}
 
 
 //  DefUseExtractor
@@ -353,23 +380,31 @@ public class DefUseExtractor extends NamespaceWalker {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public boolean visit(TypeDeclaration node) {
         super.visit(node);
-        addu(new Def(new Ident(IdentType.TYPE, node.getName().getIdentifier())));
+        addu(new DefType(node.getName().getIdentifier()));
+        String stype = Utils.typeName(node.getSuperclassType());
+        if (stype != null) {
+            addu(new ExtType(stype));
+        }
+        for (Type type1 : (List<Type>)node.superInterfaceTypes()) {
+            addu(new ExtType(Utils.typeName(type1)));
+        }
         return true;
     }
 
     @Override
     public boolean visit(EnumDeclaration node) {
         super.visit(node);
-        addu(new Def(new Ident(IdentType.TYPE, node.getName().getIdentifier())));
+        addu(new DefType(node.getName().getIdentifier()));
         return true;
     }
 
     @Override
     public boolean visit(MethodDeclaration node) {
         super.visit(node);
-        addu(new Def(new Ident(IdentType.FUNC, node.getName().getIdentifier())));
+        addu(new DefFunc(node.getName().getIdentifier()));
         return true;
     }
 
@@ -414,12 +449,12 @@ public class DefUseExtractor extends NamespaceWalker {
         List<DefUse> a = new ArrayList<DefUse>();
         String type = Utils.typeName(node.getType());
         if (type != null) {
-            a.add(new Use(new Ident(IdentType.TYPE, type)));
+            a.add(new UseType(type));
         }
         for (VariableDeclarationFragment frag :
                  (List<VariableDeclarationFragment>)node.fragments()) {
             SimpleName name = frag.getName();
-            a.add(new Def(new Ident(IdentType.VAR, name.getIdentifier())));
+            a.add(new DefVar(name.getIdentifier()));
             Expression expr1 = frag.getInitializer();
             if (expr1 != null) {
                 parseExpr(expr1);
@@ -452,9 +487,9 @@ public class DefUseExtractor extends NamespaceWalker {
         List<DefUse> a = new ArrayList<DefUse>();
         String type = Utils.typeName(node.getType());
         if (type != null) {
-            a.add(new Use(new Ident(IdentType.TYPE, type)));
+            a.add(new UseType(type));
         }
-        a.add(new Def(new Ident(IdentType.VAR, name)));
+        a.add(new DefVar(name));
         addu(a);
         return true;
     }
@@ -493,7 +528,7 @@ public class DefUseExtractor extends NamespaceWalker {
                     }
                 }
                 if (type != null) {
-                    addu(new Use(new Ident(IdentType.VAR, id)));
+                    addu(new UseVar(id));
                 }
             } else {
                 QualifiedName qname = (QualifiedName)name;
@@ -501,10 +536,10 @@ public class DefUseExtractor extends NamespaceWalker {
                 String klass = parseExpr(qname.getQualifier());
                 List<DefUse> a = new ArrayList<DefUse>();
                 if (klass != null) {
-                    a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                    a.add(new UseType(klass));
                     type = resolveType("fT"+klass+"."+id);
                 }
-                a.add(new Use(new Ident(IdentType.VAR, id)));
+                a.add(new UseType(id));
                 addu(a);
             }
         } else if (expr instanceof ThisExpression) {
@@ -558,12 +593,12 @@ public class DefUseExtractor extends NamespaceWalker {
             SimpleName name = invoke.getName();
             String id = name.getIdentifier();
             List<DefUse> a = new ArrayList<DefUse>();
-            a.add(new Use(new Ident(IdentType.FUNC, id)));
+            a.add(new UseFunc(id));
             Expression expr1 = invoke.getExpression();
             if (expr1 != null) {
                 String klass = parseExpr(expr1);
                 if (klass != null) {
-                    a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                    a.add(new UseType(klass));
                     type = resolveFunc("mT"+klass+".M"+id, a);
                 }
                 if (type == null) {
@@ -571,7 +606,7 @@ public class DefUseExtractor extends NamespaceWalker {
                 }
             } else {
                 String klass = findParent("T").getKey(1).substring(1);
-                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                a.add(new UseType(klass));
                 type = resolveFunc("mT"+klass+".M"+id, a);
             }
             addu(a);
@@ -612,10 +647,10 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = fa.getName().getIdentifier();
             String klass = parseExpr(expr1);
             if (klass != null) {
-                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                a.add(new UseType(klass));
             }
             type = resolveType("fT"+klass+"."+id);
-            a.add(new Use(new Ident(IdentType.VAR, id)));
+            a.add(new UseVar(id));
             addu(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
@@ -624,10 +659,10 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = sfa.getName().getIdentifier();
             String klass = findParent("T").getKey(1).substring(1);
             if (klass != null) {
-                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                a.add(new UseType(klass));
             }
             type = resolveType("fT"+klass+"."+id);
-            a.add(new Use(new Ident(IdentType.VAR, id)));
+            a.add(new UseVar(id));
         } else if (expr instanceof CastExpression) {
             // "(String)"
             CastExpression cast = (CastExpression)expr;
@@ -638,7 +673,7 @@ public class DefUseExtractor extends NamespaceWalker {
             ClassInstanceCreation cstr = (ClassInstanceCreation)expr;
             List<DefUse> a = new ArrayList<DefUse>();
             type = Utils.typeName(cstr.getType());
-            a.add(new Use(new Ident(IdentType.TYPE, type)));
+            a.add(new UseType(type));
             Expression expr1 = cstr.getExpression();
             if (expr1 != null) {
                 parseExpr(expr1);
@@ -681,16 +716,16 @@ public class DefUseExtractor extends NamespaceWalker {
             if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
                 String id = sname.getIdentifier();
-                addu(new ReDef(new Ident(IdentType.VAR, id)));
+                addu(new AssVar(id));
             } else {
                 QualifiedName qname = (QualifiedName)name;
                 String id = qname.getName().getIdentifier();
                 String klass = parseExpr(qname.getQualifier());
                 List<DefUse> a = new ArrayList<DefUse>();
                 if (klass != null) {
-                    a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                    a.add(new UseType(klass));
                 }
-                a.add(new ReDef(new Ident(IdentType.VAR, id)));
+                a.add(new AssVar(id));
                 addu(a);
             }
         } else if (expr instanceof ThisExpression) {
@@ -729,12 +764,12 @@ public class DefUseExtractor extends NamespaceWalker {
             List<DefUse> a = new ArrayList<DefUse>();
             String type = Utils.typeName(decl.getType());
             if (type != null) {
-                a.add(new Use(new Ident(IdentType.TYPE, type)));
+                a.add(new UseType(type));
             }
             for (VariableDeclarationFragment frag :
                      (List<VariableDeclarationFragment>)decl.fragments()) {
                 SimpleName name = frag.getName();
-                a.add(new Use(new Ident(IdentType.VAR, name.getIdentifier())));
+                a.add(new UseVar(name.getIdentifier()));
                 Expression expr1 = frag.getInitializer();
                 if (expr1 != null) {
                     parseExpr(expr1);
@@ -760,9 +795,9 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = fa.getName().getIdentifier();
             String klass = parseExpr(expr1);
             if (klass != null) {
-                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                a.add(new UseType(klass));
             }
-            a.add(new Def(new Ident(IdentType.VAR, id)));
+            a.add(new DefVar(id));
             addu(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
@@ -771,9 +806,9 @@ public class DefUseExtractor extends NamespaceWalker {
             String id = sfa.getName().getIdentifier();
             String klass = findParent("T").getKey(1).substring(1);
             if (klass != null) {
-                a.add(new Use(new Ident(IdentType.TYPE, klass)));
+                a.add(new UseType(klass));
             }
-            a.add(new Def(new Ident(IdentType.VAR, id)));
+            a.add(new DefVar(id));
         } else if (expr instanceof CastExpression) {
             // "(String)"
         } else if (expr instanceof ClassInstanceCreation) {
@@ -807,11 +842,11 @@ public class DefUseExtractor extends NamespaceWalker {
 
     private String resolveType(String key) {
         String type = null;
-        Ident[] idents = _fset.get(key);
-        if (idents != null) {
-            for (Ident ident : idents) {
-                if (ident.type == IdentType.TYPE) {
-                    type = ident.name;
+        Feat[] feats = _fset.get(key);
+        if (feats != null) {
+            for (Feat feat : feats) {
+                if (feat instanceof TypeFeat) {
+                    type = feat.name;
                     break;
                 }
             }
@@ -822,13 +857,13 @@ public class DefUseExtractor extends NamespaceWalker {
 
     private String resolveFunc(String key, List<DefUse> a) {
         String type = null;
-        Ident[] idents = _fset.get(key);
-        if (idents != null) {
-            for (Ident ident : idents) {
-                if (ident.type == IdentType.TYPE) {
-                    type = ident.name;
-                } else if (ident.type == IdentType.VAR) {
-                    a.add(new ReDef(ident));
+        Feat[] feats = _fset.get(key);
+        if (feats != null) {
+            for (Feat feat : feats) {
+                if (feat instanceof TypeFeat) {
+                    type = feat.name;
+                } else if (feat instanceof VarFeat) {
+                    a.add(new AssVar(feat.name));
                 }
             }
         }
