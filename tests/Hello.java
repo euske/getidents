@@ -17,6 +17,7 @@ class Person extends Object {
 public class Hello {
     public static void main(String[] args) {
         String arg0 = args[0];
+        List<Person> a = new List<Person>();
         Person p = new Person(arg0);
         System.out.println(p.greet("Hello"));
         System.out.println(p.name);

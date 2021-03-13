@@ -62,4 +62,36 @@ class Utils {
             return null;
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public static void getTypeNames(List<String> a, Type type) {
+        if (type instanceof SimpleType) {
+            Name name = ((SimpleType)type).getName();
+            if (name instanceof SimpleName) {
+                a.add(((SimpleName)name).getIdentifier());
+            } else {
+                a.add(((QualifiedName)name).getName().getIdentifier());
+            }
+        } else if (type instanceof QualifiedType) {
+            a.add(((QualifiedType)type).getName().getIdentifier());
+        } else if (type instanceof NameQualifiedType) {
+            a.add(((NameQualifiedType)type).getName().getIdentifier());
+        } else if (type instanceof ArrayType) {
+            getTypeNames(a, ((ArrayType)type).getElementType());
+        } else if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            for (Type type1 : (List<Type>)ptype.typeArguments()) {
+                getTypeNames(a, type1);
+            }
+            getTypeNames(a, ptype.getType());
+        }
+    }
+
+    public static String[] getTypeNames(Type type) {
+        List<String> names = new ArrayList<String>();
+        getTypeNames(names, type);
+        String[] a = new String[names.size()];
+        names.toArray(a);
+        return a;
+    }
 }
