@@ -559,7 +559,7 @@ public class DefUseExtractor extends NamespaceWalker {
                     a.add(new RefType(klass));
                     typename = resolveType("fT"+klass+"."+id);
                 }
-                a.add(new UseType(id));
+                a.add(new UseVar(id));
                 addu(a);
             }
         } else if (expr instanceof ThisExpression) {
