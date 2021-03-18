@@ -3,116 +3,130 @@ import sys
 import ast
 import logging
 
-def walk_expr(r, tree):
-    assert isinstance(tree, ast.expr), ast
-    if isinstance(tree, ast.Name):
-        r.append(('v', tree.id))
-    elif isinstance(tree, ast.Tuple):
-        for t in tree.elts:
-            walk_expr(r, t)
-    elif isinstance(tree, ast.List):
-        for t in tree.elts:
-            walk_expr(r, t)
-    elif isinstance(tree, ast.Attribute):
-        r.append(('v', tree.attr))
-    return
+PYTHON2 = (sys.version_info[0] == 2)
 
-def walk_stmt2(r, tree):
-    assert isinstance(tree, ast.stmt), ast
-    if isinstance(tree, ast.ClassDef):
-        r.append(('t', tree.name))
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.FunctionDef):
-        r.append(('f', tree.name))
-        for a in tree.args.args:
-            walk_expr(r, a)
-        if tree.args.vararg is not None:
-            r.append(('v', tree.args.vararg))
-        if tree.args.kwarg is not None:
-            r.append(('v', tree.args.kwarg))
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.ExceptHandler):
-        walk_expr(r, tree.name)
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.For):
-        walk_expr(r, tree.target)
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.If):
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.While):
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.With):
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.Assign):
-        for t in tree.targets:
-            walk_expr(r, t)
-    elif isinstance(tree, ast.TryExcept):
-        for t in tree.body:
-            walk_stmt2(r, t)
-    elif isinstance(tree, ast.TryFinally):
-        for t in tree.body:
-            walk_stmt2(r, t)
-    return
+class FeatExtractor:
 
-def walk_stmt3(r, tree):
-    assert isinstance(tree, ast.stmt), ast
-    if isinstance(tree, ast.ClassDef):
-        r.append(('t', tree.name))
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.FunctionDef):
-        r.append(('f', tree.name))
-        for a in tree.args.posonlyargs:
-            r.append(('v', a.arg))
-        for a in tree.args.args:
-            r.append(('v', a.arg))
-        if tree.args.vararg is not None:
-            r.append(('v', tree.args.vararg.arg))
-        for a in tree.args.kwonlyargs:
-            r.append(('v', a.arg))
-        if tree.args.kwarg is not None:
-            r.append(('v', tree.args.kwarg.arg))
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.ExceptHandler):
-        r.append(('v', tree.name))
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.For):
-        walk_expr(r, tree.target)
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.If):
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.While):
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.With):
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.Assign):
-        for t in tree.targets:
-            walk_expr(r, t)
-    elif isinstance(tree, ast.Try):
-        for t in tree.body:
-            walk_stmt3(r, t)
-    elif isinstance(tree, ast.AnnAssign):
-        walk_expr(r, tree.target)
-    return
+    def __init__(self):
+        self.feats = []
+        return
 
-# check: 2 or 3
-if sys.version_info[0] == 2:
-    walk_stmt = walk_stmt2
-else:
-    walk_stmt = walk_stmt3
+    def add(self, t, name):
+        self.feats.append((t, name))
+        return
+
+    def get_feats(self):
+        return self.feats
+
+    def walk_assn(self, tree):
+        assert isinstance(tree, ast.expr), ast
+        if isinstance(tree, ast.Name):
+            self.add('v', tree.id)
+        elif isinstance(tree, ast.Tuple):
+            for t in tree.elts:
+                self.walk_assn(t)
+        elif isinstance(tree, ast.List):
+            for t in tree.elts:
+                self.walk_assn(t)
+        elif isinstance(tree, ast.Attribute):
+            self.add('v', tree.attr)
+        return
+
+    def walk_stmt2(self, tree):
+        assert isinstance(tree, ast.stmt), ast
+        if isinstance(tree, ast.ClassDef):
+            self.add('t', tree.name)
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.FunctionDef):
+            self.add('f', tree.name)
+            for a in tree.args.args:
+                self.walk_assn(a)
+            if tree.args.vararg is not None:
+                self.add('v', tree.args.vararg)
+            if tree.args.kwarg is not None:
+                self.add('v', tree.args.kwarg)
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.ExceptHandler):
+            self.walk_assn(tree.name)
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.For):
+            self.walk_assn(tree.target)
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.If):
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.While):
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.With):
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.Assign):
+            for t in tree.targets:
+                self.walk_assn(t)
+        elif isinstance(tree, ast.TryExcept):
+            for t in tree.body:
+                self.walk_stmt2(t)
+        elif isinstance(tree, ast.TryFinally):
+            for t in tree.body:
+                self.walk_stmt2(t)
+        return
+
+    def walk_stmt3(self, tree):
+        assert isinstance(tree, ast.stmt), ast
+        if isinstance(tree, ast.ClassDef):
+            self.add('t', tree.name)
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.FunctionDef):
+            self.add('f', tree.name)
+            for a in tree.args.posonlyargs:
+                self.add('v', a.arg)
+            for a in tree.args.args:
+                self.add('v', a.arg)
+            if tree.args.vararg is not None:
+                self.add('v', tree.args.vararg.arg)
+            for a in tree.args.kwonlyargs:
+                self.add('v', a.arg)
+            if tree.args.kwarg is not None:
+                self.add('v', tree.args.kwarg.arg)
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.ExceptHandler):
+            self.add('v', tree.name)
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.For):
+            self.walk_assn(tree.target)
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.If):
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.While):
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.With):
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.Assign):
+            for t in tree.targets:
+                self.walk_assn(t)
+        elif isinstance(tree, ast.Try):
+            for t in tree.body:
+                self.walk_stmt3(t)
+        elif isinstance(tree, ast.AnnAssign):
+            self.walk_assn(tree.target)
+        return
+
+    if PYTHON2:
+        walk_stmt = walk_stmt2
+    else:
+        walk_stmt = walk_stmt3
 
 def main(argv):
     import getopt
@@ -140,11 +154,11 @@ def main(argv):
             print('')
             continue
         assert isinstance(tree, ast.Module)
-        r = []
+        extractor = FeatExtractor()
         for t in tree.body:
-            walk_stmt(r, t)
+            extractor.walk_stmt(t)
         print('+ '+path)
-        for (t,name) in r:
+        for (t,name) in extractor.get_feats():
             print(t+name)
         print('')
     return
