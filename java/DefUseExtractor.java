@@ -4,10 +4,10 @@
 //     class Foo { }
 //  r: refer type...
 //     x = foo.a; foo.baa();
-//  e: extend type...
-//     class Bar extends Foo { }
 //  u: use type...
 //     Foo foo = new Foo();
+//  e: extend type...
+//     class Bar extends Foo { }
 //  F: define function...
 //     void baa() { }
 //  f: use function...
@@ -69,24 +69,24 @@ class FeatureSet {
 }
 
 
-//  Context
+//  Namepath
 //
-class Context {
+class Namepath {
 
-    private Context _parent;
+    private Namepath _parent;
     private String _name;
 
-    public Context(Context parent, String name) {
+    public Namepath(Namepath parent, String name) {
         _parent = parent;
         _name = name;
     }
 
-    public Context(Context parent, Name name) {
+    public Namepath(Namepath parent, Name name) {
         if (name instanceof SimpleName) {
             _parent = parent;
             _name = ((SimpleName)name).getIdentifier();
         } else {
-            _parent = new Context(parent, ((QualifiedName)name).getQualifier());
+            _parent = new Namepath(parent, ((QualifiedName)name).getQualifier());
             _name = ((QualifiedName)name).getName().getIdentifier();
         }
     }
@@ -100,29 +100,29 @@ class Context {
         }
     }
 
-    public Context getParent() {
+    public Namepath getParent() {
         return _parent;
     }
 
-    public Context findParent(String t) {
-        Context context = this;
-        while (context != null && !context._name.startsWith(t)) {
-            context = context._parent;
+    public Namepath findParent(String t) {
+        Namepath namepath = this;
+        while (namepath != null && !namepath._name.startsWith(t)) {
+            namepath = namepath._parent;
         }
-        return context;
+        return namepath;
     }
 
     public String getKey(int i) {
-        Context context = this;
+        Namepath namepath = this;
         String name = null;
-        while (context != null && 0 < i) {
+        while (namepath != null && 0 < i) {
             if (name == null) {
-                name = context._name;
+                name = namepath._name;
             } else {
-                name = context._name + "." + name;
+                name = namepath._name + "." + name;
             }
             i--;
-            context = context._parent;
+            namepath = namepath._parent;
         }
         return name;
     }
@@ -133,20 +133,20 @@ class Context {
 //
 class NamespaceWalker extends ASTVisitor {
 
-    private Context _current = new Context(null, "");
-    private List<Context> _stack = new ArrayList<Context>();
+    private Namepath _current = new Namepath(null, "");
+    private List<Namepath> _stack = new ArrayList<Namepath>();
 
-    public Context getCurrent() {
+    public Namepath getCurrent() {
         return _current;
     }
 
-    public Context findParent(String t) {
+    public Namepath findParent(String t) {
         return _current.findParent(t);
     }
 
     @Override
     public boolean visit(PackageDeclaration node) {
-        _current = new Context(null, node.getName());
+        _current = new Namepath(null, node.getName());
         return true;
     }
 
@@ -236,7 +236,7 @@ class NamespaceWalker extends ASTVisitor {
 
     private void push(String name) {
         _stack.add(_current);
-        _current = new Context(_current, name);
+        _current = new Namepath(_current, name);
         Logger.debug("current:", _current);
     }
     private void pop() {
@@ -245,13 +245,13 @@ class NamespaceWalker extends ASTVisitor {
 }
 
 
-//  TypeExtractor
+//  FeatExtractor
 //
-class TypeExtractor extends NamespaceWalker {
+class FeatExtractor extends NamespaceWalker {
 
     private FeatureSet _fset;
 
-    public TypeExtractor(FeatureSet fset) {
+    public FeatExtractor(FeatureSet fset) {
         super();
         _fset = fset;
     }
@@ -273,7 +273,7 @@ class TypeExtractor extends NamespaceWalker {
     @Override
     @SuppressWarnings("unchecked")
     public void endVisit(MethodDeclaration node) {
-        Context parent = findParent("M");
+        Namepath parent = findParent("M");
         if (parent == null) return;
         String key = "m"+parent.getKey(2);
         for (SingleVariableDeclaration decl :
@@ -317,7 +317,7 @@ class TypeExtractor extends NamespaceWalker {
     @Override
     @SuppressWarnings("unchecked")
     public boolean visit(FieldDeclaration node) {
-        Context parent = findParent("T");
+        Namepath parent = findParent("T");
         if (parent == null) return false;
         String typename = Utils.typeName(node.getType());
         if (typename != null) {
@@ -531,20 +531,20 @@ public class DefUseExtractor extends NamespaceWalker {
             if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
                 String id = sname.getIdentifier();
-                Context context = getCurrent();
-                while (context != null) {
-                    typename = resolveType("v"+context+"."+id);
+                Namepath namepath = getCurrent();
+                while (namepath != null) {
+                    typename = resolveType("v"+namepath+"."+id);
                     if (typename != null) break;
-                    context = context.getParent();
+                    namepath = namepath.getParent();
                 }
                 if (typename == null) {
-                    context = findParent("T");
-                    while (context != null) {
-                        typename = resolveType("f"+context.getKey(1)+"."+id);
+                    namepath = findParent("T");
+                    while (namepath != null) {
+                        typename = resolveType("f"+namepath.getKey(1)+"."+id);
                         if (typename != null) break;
-                        context = context.getParent();
-                        if (context == null) break;
-                        context = context.findParent("T");
+                        namepath = namepath.getParent();
+                        if (namepath == null) break;
+                        namepath = namepath.findParent("T");
                     }
                 }
                 if (typename != null) {
@@ -978,7 +978,7 @@ public class DefUseExtractor extends NamespaceWalker {
             CompilationUnit cunit = (CompilationUnit)parser.createAST(null);
             cunits.put(path, cunit);
 
-            TypeExtractor extractor = new TypeExtractor(fset);
+            FeatExtractor extractor = new FeatExtractor(fset);
             cunit.accept(extractor);
         }
 
