@@ -134,7 +134,6 @@ class Namepath {
 class NamespaceWalker extends ASTVisitor {
 
     private Namepath _current = new Namepath(null, "");
-    private List<Namepath> _stack = new ArrayList<Namepath>();
 
     public Namepath getCurrent() {
         return _current;
@@ -235,12 +234,12 @@ class NamespaceWalker extends ASTVisitor {
     }
 
     private void push(String name) {
-        _stack.add(_current);
         _current = new Namepath(_current, name);
         Logger.debug("current:", _current);
     }
     private void pop() {
-        _current = _stack.remove(_stack.size()-1);
+        assert _current != null;
+        _current = _current.getParent();
     }
 }
 
