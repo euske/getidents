@@ -6,6 +6,15 @@ import logging
 
 PYTHON2 = (sys.version_info[0] == 2)
 
+def basename(k):
+    (_,_,n) = k.rpartition('.')
+    return n
+
+def fupdate(s1, s2):
+    if s1.issuperset(s2): return False
+    s1.update(s2)
+    return True
+
 
 ##  Type Values
 ##
@@ -14,7 +23,7 @@ class TypeVal:
         self.name = name
         return
     def __repr__(self):
-        return f'<TypeVal {self.name}>'
+        return f'<{self.name}>'
 
 class FuncVal:
     def __init__(self, ns, name, retval, args):
@@ -26,9 +35,6 @@ class FuncVal:
     def __repr__(self):
         return f'<FuncVal {self.name} {self.retval} {self.args}>'
 
-def basename(k):
-    (_,_,n) = k.rpartition('.')
-    return n
 
 ##  Namespace
 ##
@@ -39,6 +45,9 @@ class Namespace:
         self.t = t
         self.parent = parent
         return
+
+    def __repr__(self):
+        return f'<Namespace {self.name} ({self.t})>'
 
     def path(self):
         a = []
@@ -101,7 +110,12 @@ class TreeWalker:
         elif isinstance(tree, ast.UnaryOp):
             return self.walk_expr(tree.operand)
         elif isinstance(tree, ast.Lambda):
-            #self.def_func(f':lambda:{tree.lineno}:{tree.col_offset}')
+            name = f':lambda:{tree.lineno}:{tree.col_offset}'
+            self.push(name, 'F')
+            args = self.walk_args3(tree.args)
+            retval = self.walk_expr(tree.body)
+            self.pop()
+            self.def_func(name, retval, args)
             return None
         elif isinstance(tree, ast.Dict):
             for t in tree.keys:
@@ -340,22 +354,8 @@ class TreeWalker:
                 self.walk_stmt3(t)
             self.pop()
         elif isinstance(tree, ast.FunctionDef):
-            args = []
             self.push(tree.name, 'F')
-            for a in tree.args.posonlyargs:
-                args.append(self.def_var(a.arg))
-            for a in tree.args.args:
-                args.append(self.def_var(a.arg))
-            if tree.args.vararg is not None:
-                self.def_var(tree.args.vararg.arg)
-            for a in tree.args.kwonlyargs:
-                args.append(self.def_var(a.arg))
-            if tree.args.kwarg is not None:
-                self.def_var(tree.args.kwarg.arg)
-            for t in tree.args.defaults:
-                self.walk_expr(t)
-            for t in tree.args.kw_defaults:
-                self.walk_expr(t)
+            args = self.walk_args3(tree.args)
             for t in tree.body:
                 self.walk_stmt3(t)
             retval = self.retval
@@ -367,7 +367,7 @@ class TreeWalker:
                 if vals is not None:
                     if self.retval is None:
                         self.retval = set()
-                    self.retval.update(vals)
+                    self.changed = fupdate(self.retval, vals)
         elif isinstance(tree, ast.Delete):
             for t in tree.targets:
                 self.walk_expr(t)
@@ -435,6 +435,24 @@ class TreeWalker:
             self.walk_expr(tree.value)
         return
 
+    def walk_args3(self, tree):
+        args = []
+        for a in tree.posonlyargs:
+            args.append(self.def_var(a.arg))
+        for a in tree.args:
+            args.append(self.def_var(a.arg))
+        if tree.vararg is not None:
+            self.def_var(tree.vararg.arg)
+        for a in tree.kwonlyargs:
+            args.append(self.def_var(a.arg))
+        if tree.kwarg is not None:
+            self.def_var(tree.kwarg.arg)
+        for t in tree.defaults:
+            self.walk_expr(t)
+        for t in tree.kw_defaults:
+            self.walk_expr(t)
+        return args
+
     if PYTHON2:
         walk_stmt = walk_stmt2
     else:
@@ -448,9 +466,10 @@ class DefExtractor(TreeWalker):
     def __init__(self, ns, defs):
         TreeWalker.__init__(self, ns)
         self.defs = defs
+        self.feats = []
         return
 
-    def add(self, key, value=None):
+    def addvar(self, key, value=None):
         if key in self.defs:
             a = self.defs[key]
         else:
@@ -459,15 +478,21 @@ class DefExtractor(TreeWalker):
             a.add(value)
         return
 
+    def addfeat(self, feat):
+        self.feats.append(feat)
+        return
+
     def def_type(self, name):
         t = TypeVal(name)
-        self.add(f'{self.ns.path()}.{name}', t)
+        self.addvar(f'{self.ns.path()}.{name}', t)
+        self.addfeat(f'T{name}')
         return
 
     def def_func(self, name, retval, args):
         f = FuncVal(self.ns, name, retval, args)
-        self.add(f'+{self.ns.name}.{name}', f)
-        self.add(f'{self.ns.path()}.{name}', f)
+        self.addvar(f'+{self.ns.name}.{name}', f)
+        self.addvar(f'{self.ns.path()}.{name}', f)
+        self.addfeat(f'F{name}')
         return
 
     def def_var(self, name, tps=None, vals=None):
@@ -477,7 +502,8 @@ class DefExtractor(TreeWalker):
         else:
             t = None
         k = f'{self.ns.path()}.{name}'
-        self.add(k, t)
+        self.addvar(k, t)
+        self.addfeat(f'V{name}')
         return k
 
 
@@ -489,14 +515,15 @@ class FeatExtractor(TreeWalker):
         TreeWalker.__init__(self, ns)
         self.defs = defs
         self.feats = []
+        self.changed = False
         return
 
-    def add(self, feat):
+    def addfeat(self, feat):
         self.feats.append(feat)
         return
 
     def use_type(self, name):
-        self.add(f'u{name}')
+        self.addfeat(f'u{name}')
         return
 
     def def_func(self, name, retval, args):
@@ -516,7 +543,7 @@ class FeatExtractor(TreeWalker):
                 if retval is None:
                     retval = set()
                 retval.add(tp)
-                self.add(f'u{tp.name}')
+                self.addfeat(f'u{tp.name}')
                 k = '+{tp.name}.__init__'
                 if k in self.defs:
                     funcs.update(self.defs[k])
@@ -528,7 +555,7 @@ class FeatExtractor(TreeWalker):
                 funcs.add(tp)
         for f in funcs:
             if not isinstance(f, FuncVal): continue
-            self.add(f'f{f.name}')
+            self.addfeat(f'f{f.name}')
             #print('call', f, args, kwargs)
             if f.ns.t == 'T':
                 args0 = f.args[1:]
@@ -538,16 +565,16 @@ class FeatExtractor(TreeWalker):
                 if vals is None: continue
                 if k in self.defs:
                     #print('passarg', k, vals)
-                    self.defs[k].update(vals)
-                    self.add(f'a{basename(k)}')
+                    self.changed = fupdate(self.defs[k], vals)
+                    self.addfeat(f'a{basename(k)}')
             for (name,vals) in kwargs.items():
                 if vals is None: continue
                 for k in args0:
                     assert k in self.defs
                     if basename(k) == name:
                         #print('passkwarg', k, vals)
-                        self.defs[k].update(vals)
-                        self.add(f'a{basename(k)}')
+                        self.changed = fupdate(self.defs[k], vals)
+                        self.addfeat(f'a{basename(k)}')
                         break
         return retval
 
@@ -560,17 +587,17 @@ class FeatExtractor(TreeWalker):
                     k = f'+{tp.name}.{name}'
                     if k in self.defs:
                         #print('assign', k, vals)
-                        self.defs[k].update(vals)
-                        self.add(f'r{tp.name}')
-                        self.add(f'a{name}')
+                        self.changed = fupdate(self.defs[k], vals)
+                        self.addfeat(f'r{tp.name}')
+                        self.addfeat(f'a{name}')
         else:
             ns = self.ns
             while ns is not None:
                 k = f'{ns.path()}.{name}'
                 if k in self.defs:
                     #print('assign', k, vals)
-                    self.defs[k].update(vals)
-                    self.add(f'a{name}')
+                    self.changed = fupdate(self.defs[k], vals)
+                    self.addfeat(f'a{name}')
                     break
                 ns = ns.parent
         return k
@@ -584,8 +611,8 @@ class FeatExtractor(TreeWalker):
                     if k in self.defs:
                         #print('resolve', k, self.defs[k])
                         vals.update(self.defs[k])
-                        self.add(f'r{tp.name}')
-                        self.add(f'v{name}')
+                        self.addfeat(f'r{tp.name}')
+                        self.addfeat(f'v{name}')
         else:
             ns = self.ns
             while ns is not None:
@@ -593,7 +620,7 @@ class FeatExtractor(TreeWalker):
                 if k in self.defs:
                     #print('resolve', k, self.defs[k])
                     vals.update(self.defs[k])
-                    self.add(f'v{name}')
+                    self.addfeat(f'v{name}')
                     break
                 ns = ns.parent
         if not vals: return None
@@ -603,21 +630,22 @@ class FeatExtractor(TreeWalker):
 def main(argv):
     import getopt
     def usage():
-        print('usage: %s [-d] [-o output] [file ...]' % argv[0])
+        print('usage: %s [-d] [-m maxiters] [file ...]' % argv[0])
         return 100
     try:
-        (opts, args) = getopt.getopt(argv[1:], 'do:')
+        (opts, args) = getopt.getopt(argv[1:], 'dm:')
     except getopt.GetoptError:
         return usage()
     level = logging.INFO
-    output = None
+    maxiters = 5
     for (k, v) in opts:
         if k == '-d': level = logging.DEBUG
-        elif k == '-o': output = v
+        elif k == '-m': maxiters = int(v)
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=level)
 
     trees = []
     for path in args:
+        logging.info(f'Parsing: {path!r}')
         with open(path, 'rb') as fp:
             text = fp.read()
         try:
@@ -633,16 +661,28 @@ def main(argv):
         trees.append((root, tree))
 
     defs = {}
+
     for (root, tree) in trees:
+        logging.debug(f'Extracting defs: {root}')
         extractor = DefExtractor(root, defs)
         extractor.parse(tree)
-    for i in range(3):
+        for feat in extractor.feats:
+            print(feat)
+
+    for i in range(maxiters):
+        logging.info(f'Phase {i}...')
+        feats = []
+        changed = False
         for (root, tree) in trees:
+            logging.debug(f'Extracting uses: {root}')
             extractor = FeatExtractor(root, defs)
             extractor.parse(tree)
-            if i == 2:
-                for feat in extractor.feats:
-                    print(feat)
+            feats.extend(extractor.feats)
+            changed = changed or extractor.changed
+        if not changed: break
+    for feat in feats:
+        print(feat)
+    print()
     return
 
 if __name__ == '__main__': sys.exit(main(sys.argv))
