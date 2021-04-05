@@ -119,6 +119,7 @@ class TreeWalker:
             return None
         elif isinstance(tree, ast.Dict):
             for t in tree.keys:
+                if t is None: continue
                 self.walk_expr(t)
             for t in tree.values:
                 self.walk_expr(t)
@@ -472,6 +473,7 @@ class TreeWalker:
         for t in tree.defaults:
             self.walk_expr(t)
         for t in tree.kw_defaults:
+            if t is None: continue
             self.walk_expr(t)
         return args
 
@@ -521,7 +523,7 @@ class DefExtractor(TreeWalker):
 
     def def_var(self, name, tps=None, vals=None):
         assert tps is None and vals is None
-        if name == 'self' and self.ns.parent.t == 'T':
+        if name == 'self' and self.ns.parent is not None and self.ns.parent.t == 'T':
             t = TypeVal(self.ns.parent.name)
         else:
             t = None
