@@ -605,7 +605,6 @@ class FeatExtractor(TreeWalker):
         return retval
 
     def def_var(self, name, tps=None, vals=None):
-        if vals is None: return
         k = None
         if tps:
             for tp in tps:
@@ -613,16 +612,21 @@ class FeatExtractor(TreeWalker):
                     k = '+'+tp.name+'.'+name
                     if k in self.defs:
                         #print('assign', k, vals)
-                        self.changed = fupdate(self.defs[k], vals)
-                        self.addfeat('r'+tp.name)
-                        self.addfeat('a'+name)
+                        if vals is not None:
+                            self.changed = fupdate(self.defs[k], vals)
+                    else:
+                        self.defs[k] = vals or set()
+                        self.changed = True
+                    self.addfeat('r'+tp.name)
+            self.addfeat('a'+name)
         else:
             ns = self.ns
             while ns is not None:
                 k = ns.path()+'.'+name
                 if k in self.defs:
                     #print('assign', k, vals)
-                    self.changed = fupdate(self.defs[k], vals)
+                    if vals is not None:
+                        self.changed = fupdate(self.defs[k], vals)
                     self.addfeat('a'+name)
                     break
                 ns = ns.parent
