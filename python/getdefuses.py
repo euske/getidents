@@ -671,44 +671,47 @@ def main(argv):
 
     trees = []
     for path in args:
-        logging.info('Parsing: %r' % path)
+        logging.debug('Parsing: %r' % path)
         with open(path, 'rb') as fp:
             text = fp.read()
         try:
             tree = ast.parse(text, path)
         except SyntaxError:
             print('! '+path)
-            print('')
-            continue
-        print('+ '+path)
+            return 1
         (name,_) = os.path.splitext(path)
         name = os.path.normpath(name).replace(os.path.sep, '.')
         root = Namespace(name)
-        trees.append((root, tree))
+        trees.append((path, root, tree))
 
     defs = {}
 
-    for (root, tree) in trees:
-        logging.debug('Extracting defs: %r' % root)
+    alldefs = {}
+    for (path, root, tree) in trees:
+        logging.debug('Extracting defs: %r' % path)
         extractor = DefExtractor(root, defs)
         extractor.parse(tree)
-        for feat in extractor.feats:
-            print(feat)
+        alldefs[path] = extractor.feats
 
     for i in range(maxiters):
         logging.info('Phase %d...' % i)
-        feats = []
+        alluses = {}
         changed = False
-        for (root, tree) in trees:
-            logging.debug('Extracting uses: %r' % root)
+        for (path, root, tree) in trees:
+            logging.debug('Extracting uses: %r' % path)
             extractor = FeatExtractor(root, defs)
             extractor.parse(tree)
-            feats.extend(extractor.feats)
+            alluses[path] = extractor.feats
             changed = changed or extractor.changed
         if not changed: break
-    for feat in feats:
-        print(feat)
-    print('')
+
+    for (path, _, _) in trees:
+        print('+ '+path)
+        for feat in alldefs[path]:
+            print(feat)
+        for feat in alluses[path]:
+            print(feat)
+        print('')
     return
 
 if __name__ == '__main__': sys.exit(main(sys.argv))
