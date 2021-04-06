@@ -524,6 +524,11 @@ class DefExtractor(TreeWalker):
         self.addfeat('T'+name)
         return
 
+    def use_type(self, name):
+        if self.ns.is_klass():
+            self.addfeat('e'+name)
+        return
+
     def def_func(self, name, retval, args):
         f = FuncVal(name, retval, args, method=self.ns.is_klass())
         if self.ns.is_klass():
@@ -560,7 +565,8 @@ class FeatExtractor(TreeWalker):
         return
 
     def use_type(self, name):
-        self.addfeat('u'+name)
+        if not self.ns.is_klass():
+            self.addfeat('u'+name)
         return
 
     def def_func(self, name, retval, args):
