@@ -19,21 +19,25 @@ def fupdate(s1, s2):
 ##  Type Values
 ##
 class TypeVal:
+
     def __init__(self, name):
         self.name = name
         return
+
     def __repr__(self):
-        return '<%s>' % self.name
+        return '<Type: %s>' % self.name
 
 class FuncVal:
-    def __init__(self, ns, name, retval, args):
-        self.ns = ns
+
+    def __init__(self, name, retval, args, method=False):
         self.name = name
         self.retval = retval
         self.args = args
+        self.method = method
         return
+
     def __repr__(self):
-        return '<FuncVal %s %r %r>' % (self.name, self.retval, self.args)
+        return '<Func: %s %r %r>' % (self.name, self.retval, self.args)
 
 
 ##  Namespace
@@ -48,6 +52,12 @@ class Namespace:
 
     def __repr__(self):
         return '<Namespace %s (%s)>' % (self.name, self.t)
+
+    def is_klass(self):
+        return (self.t == 'T')
+
+    def is_method(self):
+        return (self.t == 'F' and self.parent is not None and self.parent.t == 'T')
 
     def path(self):
         a = []
@@ -515,15 +525,16 @@ class DefExtractor(TreeWalker):
         return
 
     def def_func(self, name, retval, args):
-        f = FuncVal(self.ns, name, retval, args)
-        self.addvar('+'+self.ns.name+'.'+name, f)
+        f = FuncVal(name, retval, args, method=self.ns.is_klass())
+        if self.ns.is_klass():
+            self.addvar('+'+self.ns.name+'.'+name, f)
         self.addvar(self.ns.path()+'.'+name, f)
         self.addfeat('F'+name)
         return
 
     def def_var(self, name, tps=None, vals=None):
         assert tps is None and vals is None
-        if name == 'self' and self.ns.parent is not None and self.ns.parent.t == 'T':
+        if name == 'self' and self.ns.is_method():
             t = TypeVal(self.ns.parent.name)
         else:
             t = None
@@ -583,7 +594,7 @@ class FeatExtractor(TreeWalker):
             if not isinstance(f, FuncVal): continue
             self.addfeat('f'+f.name)
             #print('call', f, args, kwargs)
-            if f.ns.t == 'T':
+            if f.method:
                 args0 = f.args[1:]
             else:
                 args0 = f.args
@@ -660,33 +671,39 @@ class FeatExtractor(TreeWalker):
 def main(argv):
     import getopt
     def usage():
-        print('usage: %s [-d] [-m maxiters] [file ...]' % argv[0])
+        print('usage: %s [-d] [-e maxerrors] [-i maxiters] [file ...]' % argv[0])
         return 100
     try:
-        (opts, args) = getopt.getopt(argv[1:], 'dm:')
+        (opts, args) = getopt.getopt(argv[1:], 'de:i:')
     except getopt.GetoptError:
         return usage()
     level = logging.INFO
+    maxerrors = 3
     maxiters = 5
     for (k, v) in opts:
         if k == '-d': level = logging.DEBUG
-        elif k == '-m': maxiters = int(v)
+        elif k == '-e': maxerrors = int(v)
+        elif k == '-i': maxiters = int(v)
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=level)
 
     trees = []
+    nerrors = 0
     for path in args:
         logging.debug('Parsing: %r' % path)
         with open(path, 'rb') as fp:
             text = fp.read()
         try:
             tree = ast.parse(text, path)
-        except SyntaxError:
-            print('! '+path)
-            return 1
-        (name,_) = os.path.splitext(path)
-        name = os.path.normpath(name).replace(os.path.sep, '.')
-        root = Namespace(name)
-        trees.append((path, root, tree))
+            (name,_) = os.path.splitext(path)
+            name = os.path.normpath(name).replace(os.path.sep, '.')
+            root = Namespace(name)
+            trees.append((path, root, tree))
+        except SyntaxError as e:
+            logging.error('Error: %r: %r' % (path, e))
+            nerrors += 1
+            if maxerrors <= nerrors:
+                logging.fatal('Too many errors.')
+                return 1
 
     defs = {}
 
