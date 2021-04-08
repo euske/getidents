@@ -38,7 +38,7 @@ def loadkeys(path):
     return keys
 
 # perf_eval(): performs evaluation.
-def perf_eval(idmap, idf0, idf, keyfile, threshold=50):
+def perf_eval(idmap, idf0, idf, keyfile, threshold, verbose=0):
     keys = loadkeys(keyfile)
     n_total = 0
     s_total = 0
@@ -46,7 +46,7 @@ def perf_eval(idmap, idf0, idf, keyfile, threshold=50):
         path = f'uses/{name}.lst'
         (cats, phrases) = get_phrases(path, idmap)
         phrases.sort(key=lambda p:p.score()*idf.get(p.word, idf0), reverse=True)
-        ranked = { ''.join(p.words): i for (i,p) in enumerate(phrases) }
+        ranked = { ''.join(p.seq): i for (i,p) in enumerate(phrases) }
         found = []
         for syn in syns:
             i = None
@@ -58,10 +58,11 @@ def perf_eval(idmap, idf0, idf, keyfile, threshold=50):
                 found.append((i, syn[0]))
         n = len([ i for (i,w) in found if i < threshold ])
         print(name, f'{n}/{len(syns)}')
-        print('#', sorted(found))
+        if verbose:
+            print('#', sorted(found))
         n_total += n
         s_total += len(syns)
-    print(f'total {n_total}/{s_total}')
+    print(f'Total: {n_total}/{s_total} ({n_total*100/s_total:.01f}%)')
     return
 
 #
@@ -98,7 +99,7 @@ def main(argv):
 
     if keyfile is not None:
         # Evaluation mode.
-        perf_eval(idmap, idf0, idf, keyfile, threshold=threshold)
+        perf_eval(idmap, idf0, idf, keyfile, threshold, verbose=verbose)
     else:
         for path in args:
             (cats, phrases) = get_phrases(path, idmap)
