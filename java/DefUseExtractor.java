@@ -69,24 +69,24 @@ class FeatureSet {
 }
 
 
-//  Namepath
+//  Namespace
 //
-class Namepath {
+class Namespace {
 
-    private Namepath _parent;
+    private Namespace _parent;
     private String _name;
 
-    public Namepath(Namepath parent, String name) {
+    public Namespace(Namespace parent, String name) {
         _parent = parent;
         _name = name;
     }
 
-    public Namepath(Namepath parent, Name name) {
+    public Namespace(Namespace parent, Name name) {
         if (name instanceof SimpleName) {
             _parent = parent;
             _name = ((SimpleName)name).getIdentifier();
         } else {
-            _parent = new Namepath(parent, ((QualifiedName)name).getQualifier());
+            _parent = new Namespace(parent, ((QualifiedName)name).getQualifier());
             _name = ((QualifiedName)name).getName().getIdentifier();
         }
     }
@@ -100,29 +100,29 @@ class Namepath {
         }
     }
 
-    public Namepath getParent() {
+    public Namespace getParent() {
         return _parent;
     }
 
-    public Namepath findParent(String t) {
-        Namepath namepath = this;
-        while (namepath != null && !namepath._name.startsWith(t)) {
-            namepath = namepath._parent;
+    public Namespace findParent(String t) {
+        Namespace space = this;
+        while (space != null && !space._name.startsWith(t)) {
+            space = space._parent;
         }
-        return namepath;
+        return space;
     }
 
     public String getKey(int i) {
-        Namepath namepath = this;
+        Namespace space = this;
         String name = null;
-        while (namepath != null && 0 < i) {
+        while (space != null && 0 < i) {
             if (name == null) {
-                name = namepath._name;
+                name = space._name;
             } else {
-                name = namepath._name + "." + name;
+                name = space._name + "." + name;
             }
             i--;
-            namepath = namepath._parent;
+            space = space._parent;
         }
         return name;
     }
@@ -133,19 +133,19 @@ class Namepath {
 //
 class NamespaceWalker extends ASTVisitor {
 
-    private Namepath _current = new Namepath(null, "");
+    private Namespace _current = new Namespace(null, "");
 
-    public Namepath getCurrent() {
+    public Namespace getCurrent() {
         return _current;
     }
 
-    public Namepath findParent(String t) {
+    public Namespace findParent(String t) {
         return _current.findParent(t);
     }
 
     @Override
     public boolean visit(PackageDeclaration node) {
-        _current = new Namepath(null, node.getName());
+        _current = new Namespace(null, node.getName());
         return true;
     }
 
@@ -234,7 +234,7 @@ class NamespaceWalker extends ASTVisitor {
     }
 
     private void push(String name) {
-        _current = new Namepath(_current, name);
+        _current = new Namespace(_current, name);
         Logger.debug("current:", _current);
     }
     private void pop() {
@@ -272,7 +272,7 @@ class FeatExtractor extends NamespaceWalker {
     @Override
     @SuppressWarnings("unchecked")
     public void endVisit(MethodDeclaration node) {
-        Namepath parent = findParent("M");
+        Namespace parent = findParent("M");
         if (parent == null) return;
         String key = "m"+parent.getKey(2);
         for (SingleVariableDeclaration decl :
@@ -316,7 +316,7 @@ class FeatExtractor extends NamespaceWalker {
     @Override
     @SuppressWarnings("unchecked")
     public boolean visit(FieldDeclaration node) {
-        Namepath parent = findParent("T");
+        Namespace parent = findParent("T");
         if (parent == null) return false;
         String typename = Utils.typeName(node.getType());
         if (typename != null) {
@@ -530,20 +530,20 @@ public class DefUseExtractor extends NamespaceWalker {
             if (name instanceof SimpleName) {
                 SimpleName sname = (SimpleName)name;
                 String id = sname.getIdentifier();
-                Namepath namepath = getCurrent();
-                while (namepath != null) {
-                    typename = resolveType("v"+namepath+"."+id);
+                Namespace space = getCurrent();
+                while (space != null) {
+                    typename = resolveType("v"+space+"."+id);
                     if (typename != null) break;
-                    namepath = namepath.getParent();
+                    space = space.getParent();
                 }
                 if (typename == null) {
-                    namepath = findParent("T");
-                    while (namepath != null) {
-                        typename = resolveType("f"+namepath.getKey(1)+"."+id);
+                    space = findParent("T");
+                    while (space != null) {
+                        typename = resolveType("f"+space.getKey(1)+"."+id);
                         if (typename != null) break;
-                        namepath = namepath.getParent();
-                        if (namepath == null) break;
-                        namepath = namepath.findParent("T");
+                        space = space.getParent();
+                        if (space == null) break;
+                        space = space.findParent("T");
                     }
                 }
                 if (typename != null) {
@@ -820,7 +820,7 @@ public class DefUseExtractor extends NamespaceWalker {
             if (klass != null) {
                 a.add(new RefType(klass));
             }
-            a.add(new DefVar(id));
+            a.add(new AssVar(id));
             addu(a);
         } else if (expr instanceof SuperFieldAccess) {
             // "super.baa"
@@ -831,7 +831,7 @@ public class DefUseExtractor extends NamespaceWalker {
             if (klass != null) {
                 a.add(new RefType(klass));
             }
-            a.add(new DefVar(id));
+            a.add(new AssVar(id));
         } else if (expr instanceof CastExpression) {
             // "(String)"
         } else if (expr instanceof ClassInstanceCreation) {
