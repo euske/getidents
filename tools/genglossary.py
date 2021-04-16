@@ -72,7 +72,7 @@ def main(argv):
         print('usage: %s [-a] [-p phrases.lst] [-k keyfile] [-n threshold] [-B] [-t|-T] [-f|-F] [-v|-V] [file ...]' % argv[0])
         return 100
     try:
-        (opts, args) = getopt.getopt(argv[1:], 'ap:k:n:BAtTfFvV')
+        (opts, args) = getopt.getopt(argv[1:], 'ap:k:n:BtTfFvV')
     except getopt.GetoptError:
         return usage()
     verbose = 0
@@ -93,7 +93,9 @@ def main(argv):
         elif k == '-V': idmap.update({ 'V':'V', 'a':'V', 'v':'V' })
         elif k == '-v': idmap.update({ 'V':'V' })
     if not idmap:
-        idmap.update({ 'T':'T', 'r':'T', 'u':'T', 'e':'T', 'F':'F', 'f':'F', 'V':'V', 'a':'V', 'v':'V' })
+        idmap.update({ 'T':'T', 'r':'T', 'u':'T', 'e':'T' })
+        idmap.update({ 'F':'F', 'f':'F' })
+        idmap.update({ 'V':'V', 'a':'V', 'v':'V' })
 
     (idf0, idf) = loadidf(phrasefile)
 
